@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}GospelTube{% endblock %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin:0; padding:0; background:#111; color:white; }
+        header { padding:10px 20px; background:#222; text-align:center; }
+        header a { color:#4da6ff; text-decoration:none; margin:0 10px; }
+        main { padding:20px; }
+        footer { padding:10px 20px; text-align:center; background:#222; margin-top:20px; }
+        a { color:#4da6ff; text-decoration:none; }
+        a:hover { text-decoration:underline; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="{{ url_for('index') }}">Home</a>
+        <a href="{{ url_for('search') }}">Search</a>
+    </header>
+
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <footer>
+        &copy; {{ datetime.utcnow().year }} GospelTube. All Rights Reserved.
+    </footer>
+</body>
+</html>

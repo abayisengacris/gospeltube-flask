@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{{ 'Edit' if category else 'Add' }} Category</title>
+<style>
+body { font-family:Arial; background:#f5f6fa; padding:30px; }
+form { max-width:520px; background:white; padding:25px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+label { display:block; margin-top:15px; font-weight:bold; }
+input, select { width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:4px; }
+button { margin-top:20px; padding:12px; width:100%; background:#28a745; color:white; border:none; border-radius:4px; font-size:16px; }
+.nav a { text-decoration:none; color:#007bff; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<h1>{{ 'Edit' if category else 'Add' }} Category</h1>
+<div class="nav"><a href="{{ url_for('manage_categories') }}">⬅ Back</a></div>
+
+<form method="POST">
+<label>Name</label>
+<input type="text" name="name" value="{{ category.name if category else '' }}" required>
+
+<label>Parent Category</label>
+<select name="parent_id">
+    <option value="">None</option>
+    {% for c in categories %}
+        {% if not category or c.id != category.id %}
+            <option value="{{ c.id }}" {% if category and category.parent_id == c.id %}selected{% endif %}>
+                {{ c.name }}
+            </option>
+        {% endif %}
+    {% endfor %}
+</select>
+<button type="submit">Save</button>
+</form>
+</body>
+</html>

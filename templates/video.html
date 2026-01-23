@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ video.title }} | GospelTube</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #0f0f0f;
+            color: #fff;
+        }
+
+        /* Sticky Navbar */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        /* Sticky Video Container */
+        .video-container {
+            position: sticky;
+            top: 80px; /* navbar height */
+            z-index: 10;
+            margin-bottom: 20px;
+        }
+
+        .video-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .action-buttons a {
+            margin-left: 10px;
+        }
+
+        .related-thumb {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .related-thumb:hover {
+            transform: scale(1.05);
+        }
+
+        .related-title {
+            font-size: 0.92rem;
+            font-weight: 600;
+            line-height: 1.3;
+            color: #fff;
+        }
+
+        .related-title:hover {
+            text-decoration: underline;
+        }
+
+        .related-scroll {
+            max-height: 80vh;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .related-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .related-scroll::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 992px) {
+            .video-container {
+                position: relative;
+                top: 0;
+                margin-bottom: 20px;
+            }
+
+            .related-scroll {
+                max-height: none;
+                overflow-y: visible;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<nav class="navbar navbar-dark bg-black px-3">
+    <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">🎵 GospelTube</a>
+    <form class="d-flex ms-auto" method="GET" action="{{ url_for('search') }}">
+        <input class="form-control form-control-sm me-2" type="search" name="q" placeholder="Search..." aria-label="Search">
+        <button class="btn btn-outline-light btn-sm" type="submit">Search</button>
+    </form>
+</nav>
+
+<div class="container-fluid mt-3">
+    <div class="row">
+
+        <!-- MAIN VIDEO -->
+        <div class="col-lg-8 col-md-12 px-4">
+            <div class="video-container">
+                <div class="ratio ratio-16x9 mb-3">
+                    <iframe id="mainVideo"
+                            src="https://www.youtube.com/embed/{{ video.video_id }}?enablejsapi=1&rel=0&mute=1"
+                            title="{{ video.title }}"
+                            allowfullscreen
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+                    </iframe>
+                </div>
+
+                <!-- Video Title & Buttons -->
+                <div class="video-title">
+                    <span>{{ video.title }}</span>
+                    <span class="action-buttons">
+                        {% if video.translated_link %}
+                            <a href="{{ video.translated_link }}" target="_blank" class="btn btn-danger btn-sm">▶ Reba Agasobanuye</a>
+                        {% endif %}
+                        {% if video.download_link %}
+                            <a href="{{ video.download_link }}" target="_blank" class="btn btn-success btn-sm">⬇ Download Film</a>
+                        {% endif %}
+                    </span>
+                </div>
+
+                <!-- Back Button -->
+                <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm mb-3">⬅ Back to Home</a>
+            </div>
+        </div>
+
+        <!-- RELATED VIDEOS -->
+        <div class="col-lg-4 col-md-12 px-3">
+            <h6 class="mb-3 text-uppercase text-secondary">Related Videos</h6>
+            <div class="related-scroll">
+                {% if related_videos %}
+                    {% for rv in related_videos %}
+                        <div class="row mb-3 align-items-start related-video-item" data-video-id="{{ rv.video_id }}">
+                            <div class="col-5">
+                                <img src="https://img.youtube.com/vi/{{ rv.video_id }}/mqdefault.jpg"
+                                     class="related-thumb" alt="{{ rv.title }}">
+                            </div>
+                            <div class="col-7">
+                                <div class="related-title">{{ rv.title }}</div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No related videos found.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- YouTube Autoplay Script -->
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+    var player;
+    var relatedVideos = Array.from(document.querySelectorAll('.related-video-item')).map(e => e.dataset.videoId);
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('mainVideo', {
+            events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
+        });
+    }
+
+    function onPlayerReady(event) {
+        // Play video when visible
+        const videoContainer = document.querySelector('.video-container');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if(entry.isIntersecting) {
+                    player.playVideo();
+                } else {
+                    player.pauseVideo();
+                }
+            });
+        }, { threshold: 0.5 });
+
+        observer.observe(videoContainer);
+
+        // Play related video on hover
+        document.querySelectorAll('.related-thumb').forEach((thumb, index) => {
+            thumb.addEventListener('mouseenter', () => {
+                player.loadVideoById(relatedVideos[index]);
+            });
+        });
+    }
+
+    // Autoplay next video when current ends
+    function onPlayerStateChange(event) {
+        if(event.data === YT.PlayerState.ENDED) {
+            let currentId = player.getVideoData().video_id;
+            let currentIndex = relatedVideos.indexOf(currentId);
+            let nextIndex = (currentIndex + 1) % relatedVideos.length;
+            player.loadVideoById(relatedVideos[nextIndex]);
+        }
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

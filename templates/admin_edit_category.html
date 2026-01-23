@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head><title>Categories</title></head>
+<body>
+
+<h2>Add Category</h2>
+
+<form method="POST" action="/admin/categories">
+    <input type="text" name="name" placeholder="Category name" required>
+    <select name="parent_id">
+        <option value="">No Parent</option>
+        {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Add</button>
+</form>
+
+<hr>
+
+<h2>All Categories</h2>
+
+<table border="1">
+<tr><th>Name</th><th>Parent</th><th>Action</th></tr>
+
+{% for cat in categories %}
+<tr>
+    <td>{{ cat.name }}</td>
+    <td>{{ cat.parent.name if cat.parent else "-" }}</td>
+    <td>
+        <a href="/admin/categories/edit/{{ cat.id }}">Edit</a>
+        <form method="POST" action="/admin/categories/delete/{{ cat.id }}" style="display:inline;">
+            <button type="submit">Delete</button>
+        </form>
+    </td>
+</tr>
+{% endfor %}
+
+</table>
+
+</body>
+</html>

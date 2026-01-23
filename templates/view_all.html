@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Library</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            background: #0f0f0f;
+            color: #eaeaea;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: #141414;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #222;
+        }
+
+        .sidebar h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .category {
+            margin-bottom: 14px;
+        }
+
+        .category-name {
+            font-weight: 600;
+            color: #4da6ff;
+            cursor: pointer;
+            margin-bottom: 4px;
+        }
+
+        .subcategory {
+            padding-left: 14px;
+            font-size: 14px;
+            color: #bbb;
+            cursor: pointer;
+            margin: 3px 0;
+        }
+
+        .subcategory:hover {
+            color: #4da6ff;
+        }
+
+        /* Content */
+        .content {
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h3 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            border-left: 4px solid #4da6ff;
+            padding-left: 10px;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .video-card {
+            background: #1b1b1b;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .video-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+        }
+
+        .video-thumb {
+            width: 100%;
+            height: 140px;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .video-info {
+            padding: 10px;
+            font-size: 14px;
+            color: #ddd;
+        }
+
+        .video-info span {
+            display: block;
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <h2>Categories</h2>
+
+        {% for cat in categories %}
+        <div class="category">
+            <div class="category-name">{{ cat.name }}</div>
+
+            {% for sub in cat.children %}
+                <div class="subcategory">› {{ sub.name }}</div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+
+        {% for block in homepage_data %}
+        <div class="section">
+            <h3>{{ block.category.name }}</h3>
+
+            {% if block.parent_videos %}
+            <div class="video-grid">
+                {% for v in block.parent_videos %}
+                <div class="video-card" onclick="location.href='{{ url_for('video_page', video_id=v.video_id) }}'">
+                    <div class="video-thumb" style="background-image:url('https://img.youtube.com/vi/{{ v.video_id }}/hqdefault.jpg')"></div>
+                    <div class="video-info">
+                        {{ v.title }}
+                        <span>{{ v.category.name if v.category else '' }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% for child in block.children %}
+                <h4 style="margin-top:20px;color:#aaa;">{{ child.category.name }}</h4>
+                <div class="video-grid">
+                    {% for v in child.videos %}
+                    <div class="video-card" onclick="location.href='{{ url_for('video_page', video_id=v.video_id) }}'">
+                        <div class="video-thumb" style="background-image:url('https://img.youtube.com/vi/{{ v.video_id }}/hqdefault.jpg')"></div>
+                        <div class="video-info">{{ v.title }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+        </div>
+        {% endfor %}
+
+    </main>
+
+</div>
+
+</body>
+</html>

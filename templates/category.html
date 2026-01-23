@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ category.name }} - All Videos</title>
+    <style>
+        body { background:#111; color:white; font-family:Arial, sans-serif; padding:20px; }
+        h1 { text-align:center; color:#4da6ff; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:15px; margin-top:20px; }
+        .card { background:#1c1c1c; padding:10px; border-radius:8px; text-align:center; }
+        iframe { width:100%; height:150px; border-radius:6px; }
+        a { color:#4da6ff; text-decoration:none; display:block; margin-top:8px; }
+        a:hover { text-decoration:underline; }
+        p { margin-top:5px; font-size:14px; }
+    </style>
+</head>
+<body>
+
+<h1>{{ category.name }}</h1>
+
+{% if videos %}
+<div class="grid">
+    {% for video in videos %}
+    <div class="card">
+        <iframe src="https://www.youtube.com/embed/{{ video.video_id }}" allowfullscreen></iframe>
+        <p>{{ video.title }}</p>
+        <a href="{{ url_for('video_page', video_id=video.video_id) }}">Watch Video</a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p>No videos available in this category.</p>
+{% endif %}
+
+</body>
+</html>
