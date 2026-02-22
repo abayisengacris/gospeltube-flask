@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-3">
+    <h1 class="mb-4">{{ main_category.name }}</h1>
+
+    <!-- Main Category Videos -->
+    {% if main_videos %}
+    <div class="video-row mb-5">
+        {% for video in main_videos %}
+        <div class="video-card">
+            <a href="{{ url_for('video_page', video_id=video.video_id) }}">
+                <img class="video-thumb" src="https://img.youtube.com/vi/{{ video.video_id }}/hqdefault.jpg" alt="{{ video.title }}">
+            </a>
+            <div class="video-info">
+                <div class="video-title">{{ video.title }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Subcategory Sections -->
+    {% for block in subcategory_blocks %}
+    <div class="subcategory-section mb-5">
+        <h2 class="mb-3">{{ block.category.name }}</h2>
+        <div class="video-row">
+            {% for video in block.videos %}
+            <div class="video-card">
+                <a href="{{ url_for('video_page', video_id=video.video_id) }}">
+                    <img class="video-thumb" src="https://img.youtube.com/vi/{{ video.video_id }}/hqdefault.jpg" alt="{{ video.title }}">
+                </a>
+                <div class="video-info">
+                    <div class="video-title">{{ video.title }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+<style>
+.video-row {
+    display: flex;
+    overflow-x: auto;
+    gap: 16px;
+    scroll-behavior: smooth;
+}
+.video-card {
+    min-width: 260px;
+    background-color: #020617;
+    border-radius: 14px;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.video-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+}
+.video-thumb {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+.video-info {
+    padding: 12px;
+}
+.video-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+</style>

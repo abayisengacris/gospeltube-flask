@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Category Header -->
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="category-title">{{ category.name }}</h1>
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-success">Back to Home</a>
+    </div>
+
+    <!-- Category Chips -->
+    <div class="category-bar mb-3">
+        <a href="{{ url_for('index') }}" class="category-chip {% if active_category == 'All' %}active{% endif %}">All</a>
+        {% for cat in categories %}
+            <a href="{{ url_for('category_page', category_slug=cat.slug) }}" 
+               class="category-chip {% if active_category and active_category|lower == cat.name|lower %}active{% endif %}">
+                {{ cat.name }}
+            </a>
+        {% endfor %}
+    </div>
+
+    <!-- Videos Grid -->
+    {% if videos %}
+    <div class="video-row flex-wrap">
+        {% for video in videos %}
+        <div class="video-card">
+            <a href="{{ url_for('video_page', video_id=video.video_id) }}">
+                <img class="video-thumb" src="https://img.youtube.com/vi/{{ video.video_id }}/hqdefault.jpg" alt="{{ video.title }}">
+            </a>
+            <div class="video-info">
+                <div class="video-title">{{ video.title }}</div>
+                <div class="video-meta">{{ category.name }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <p class="text-warning">No videos available in this category yet.</p>
+    {% endif %}
+</div>
+
+<style>
+.video-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    scroll-behavior: smooth;
+}
+.video-card {
+    width: 220px;
+    background-color: #020617;
+    border-radius: 14px;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.video-card:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); }
+.video-thumb { width: 100%; height: 140px; object-fit: cover; }
+.video-info { padding: 10px; }
+.video-title { font-size: 0.95rem; font-weight: 600; line-height: 1.2; color: #fff; }
+.video-meta { font-size: 0.8rem; color: #9ca3af; }
+</style>
+
+{% endblock %}

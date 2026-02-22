@@ -1,101 +1,92 @@
-from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
+from flask import (
+    Flask, render_template, request, redirect,
+    url_for, session, flash, jsonify
+)
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
-import requests
+from functools import wraps
 from datetime import datetime
 import re
 from urllib.parse import urlparse, parse_qs
 from typing import Optional
+from flask_mail import Mail, Message  # Added Flask-Mail
 
-# =========================
+# =====================================================
 # APP CONFIGURATION
-# =========================
+# =====================================================
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "CHANGE_THIS_TO_A_SECRET_KEY"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///gospeltube.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# ========================
+# FLASK-MAIL CONFIGURATION
+# ========================
+app.config["MAIL_SERVER"] = "smtp.gmail.com"
+app.config["MAIL_PORT"] = 587
+app.config["MAIL_USE_TLS"] = True
+app.config["MAIL_USE_SSL"] = False
+app.config["MAIL_USERNAME"] = "your_email@gmail.com"  # Replace with your email
+app.config["MAIL_PASSWORD"] = "your_email_password"  # Replace with your email password or app-specific password
+app.config["MAIL_DEFAULT_SENDER"] = ("GospelTube", "your_email@gmail.com")  # Sender name and email
+
+mail = Mail(app)
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# =========================
+# =====================================================
 # SETTINGS
-# =========================
-YT_API_KEY = "AIzaSyBY3d9mhvKYtuPa11H2Q4wYW8RVma_6994"
+# =====================================================
 ADMIN_USERNAME = "fixgospel"
 ADMIN_PASSWORD_HASH = generate_password_hash("Cris1994!!!!")
 
-# =========================
-# CONTEXT PROCESSOR
-# =========================
+# =====================================================
+# CONTEXT PROCESSORS
+# =====================================================
 @app.context_processor
 def inject_globals():
     return dict(datetime=datetime)
 
-# =========================
-# DATABASE MODELS
-# =========================
-class Category(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False, unique=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey("category.id"))
-    parent = db.relationship("Category", remote_side=[id], backref="children")
-    videos = db.relationship("Video", backref="category", lazy=True)
-class Video(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(300), nullable=False)
-    video_id = db.Column(db.String(50), nullable=False, unique=True)
-    channel_id = db.Column(db.String(50))
-    category_id = db.Column(db.Integer, db.ForeignKey("category.id"))
-    translated_link = db.Column(db.String(500))
-    download_link = db.Column(db.String(500))
-    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+@app.context_processor
+def inject_categories():
+    return {
+        "categories": Category.query.order_by(Category.name).all()
+    }
 
-# =========================
+# =====================================================
 # HELPERS
-# =========================
+# =====================================================
 def extract_video_id(url: str) -> Optional[str]:
     if not url:
         return None
-    url = url.strip()
-
     match = re.match(r"(https?://)?(www\.)?youtu\.be/([^?&/]+)", url)
     if match:
         return match.group(3)
 
-    parsed_url = urlparse(url)
-    if parsed_url.hostname in ("www.youtube.com", "youtube.com", "m.youtube.com"):
-        return parse_qs(parsed_url.query).get("v", [None])[0]
-
+    parsed = urlparse(url)
+    if parsed.hostname in ("www.youtube.com", "youtube.com", "m.youtube.com"):
+        return parse_qs(parsed.query).get("v", [None])[0]
     return None
 
+def slugify(name: str) -> str:
+    return re.sub(r"\s+", "-", name.strip().lower())
 
-def fetch_video_details(video_id: str):
-    url = "https://www.googleapis.com/youtube/v3/videos"
-    params = {"part": "snippet", "id": video_id, "key": YT_API_KEY}
-    try:
-        r = requests.get(url, params=params, timeout=5)
-        r.raise_for_status()
-        data = r.json()
-        if data.get("items"):
-            return data["items"][0]
-    except Exception as e:
-        print("YouTube API error:", e)
-    return None
-
-
-def admin_required():
-    if not session.get("admin"):
-        abort(403)
-
+def admin_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not session.get("admin"):
+            flash("Admin login required.", "danger")
+            return redirect(url_for("admin_login"))
+        return func(*args, **kwargs)
+    return wrapper
 
 def get_related_videos(video, limit=6):
     if not video.category:
         return []
 
     category_ids = [video.category_id]
-
     if video.category.parent_id:
         siblings = Category.query.filter_by(parent_id=video.category.parent_id).all()
         category_ids = [c.id for c in siblings]
@@ -103,31 +94,81 @@ def get_related_videos(video, limit=6):
         children = Category.query.filter_by(parent_id=video.category_id).all()
         category_ids.extend([c.id for c in children])
 
-    return (
-        Video.query
-        .filter(Video.category_id.in_(category_ids), Video.id != video.id)
-        .order_by(Video.date_added.desc())
-        .limit(limit)
-        .all()
+    return Video.query.filter(
+        Video.category_id.in_(category_ids),
+        Video.id != video.id
+    ).order_by(Video.date_added.desc()).limit(limit).all()
+
+# =====================================================
+# DATABASE MODELS
+# =====================================================
+class Category(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    slug = db.Column(db.String(120), nullable=False, unique=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey("category.id"))
+    parent = db.relationship("Category", remote_side=[id], backref="children")
+    videos = db.relationship("Video", backref="category", lazy=True)
+
+class Video(db.Model):
+    __tablename__ = "videos"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(300), nullable=False)
+    description = db.Column(db.Text)
+    video_id = db.Column(db.String(50), nullable=False, unique=True)
+    channel_id = db.Column(db.String(50))
+    category_id = db.Column(db.Integer, db.ForeignKey("category.id"))
+    translated_link = db.Column(db.String(500))
+    download_link = db.Column(db.String(500))
+    views = db.Column(db.Integer, default=0)
+    likes = db.Column(db.Integer, default=0)
+    last_watched = db.Column(db.DateTime)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Subscriber(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    date_subscribed = db.Column(db.DateTime, default=datetime.utcnow)
+
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), nullable=False)
+
+class Like(db.Model):
+    __tablename__ = "likes"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    video_id = db.Column(
+        db.Integer,
+        db.ForeignKey("videos.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "video_id", name="unique_like"),
     )
 
-# =========================
+# =====================================================
 # FRONTEND ROUTES
-# =========================
+# =====================================================
 @app.route("/")
 def index():
-    categories = Category.query.filter_by(parent_id=None).all()
+    categories = Category.query.filter_by(parent_id=None).order_by(Category.name.asc()).all()
     homepage_data = []
 
     for cat in categories:
-        parent_videos = Video.query.filter_by(category_id=cat.id).order_by(Video.date_added.desc()).limit(10).all()
+        parent_videos = Video.query.filter_by(category_id=cat.id)\
+                                   .order_by(Video.date_added.desc()).limit(10).all()
         children_data = []
-
         for sub in cat.children:
-            sub_videos = Video.query.filter_by(category_id=sub.id).order_by(Video.date_added.desc()).limit(10).all()
+            sub_videos = Video.query.filter_by(category_id=sub.id)\
+                                    .order_by(Video.date_added.desc()).limit(10).all()
             if sub_videos:
                 children_data.append({"category": sub, "videos": sub_videos})
-
         if parent_videos or children_data:
             homepage_data.append({
                 "category": cat,
@@ -135,196 +176,292 @@ def index():
                 "children": children_data
             })
 
-    return render_template("index.html", homepage_data=homepage_data)
+    featured_videos = Video.query.order_by(Video.date_added.desc()).limit(5).all()
+    popular_videos = Video.query.order_by(Video.views.desc()).limit(10).all()
 
-
-@app.route("/videos")
-def view_all_videos():
-    videos = Video.query.order_by(Video.date_added.desc()).all()
-    return render_template("view_all.html", videos=videos)
-
-
-@app.route("/category/<int:category_id>")
-def category_videos(category_id):
-    category = Category.query.get_or_404(category_id)
-    ids = [category.id] + [c.id for c in category.children]
-    videos = Video.query.filter(Video.category_id.in_(ids)).all()
-    return render_template("category.html", category=category, videos=videos)
-
+    return render_template(
+        "index.html",
+        homepage_data=homepage_data,
+        featured_videos=featured_videos,
+        popular_videos=popular_videos,
+        active_category="All"
+    )
 
 @app.route("/video/<video_id>")
 def video_page(video_id):
     video = Video.query.filter_by(video_id=video_id).first_or_404()
-    related_videos = get_related_videos(video)
-    return render_template("video.html", video=video, related_videos=related_videos)
+    session_key = f"viewed_{video.id}"
+    if not session.get(session_key):
+        video.views += 1
+        video.last_watched = datetime.utcnow()
+        session[session_key] = True
+        db.session.commit()
 
+    return render_template(
+        "video.html",
+        video=video,
+        related_videos=get_related_videos(video),
+        popular_videos=Video.query.order_by(Video.views.desc()).limit(8).all()
+    )
+
+@app.route('/like_video/<video_id>', methods=['POST'])
+def like_video(video_id):
+    video = Video.query.filter_by(video_id=video_id).first_or_404()
+    video.likes += 1
+    db.session.commit()
+    return jsonify({"likes": video.likes})
+
+# ==============================
+# SUBSCRIBE ROUTE (AJAX JSON)
+# ==============================
+@app.route("/subscribe", methods=["POST"])
+def subscribe():
+    try:
+        data = request.get_json()
+        if not data or "email" not in data:
+            return jsonify({"status": "error", "message": "Email is required."}), 400
+
+        email = data["email"].strip().lower()
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            return jsonify({"status": "error", "message": "Invalid email address."}), 400
+
+        # Check if already subscribed
+        existing = Subscriber.query.filter_by(email=email).first()
+        if existing:
+            return jsonify({"status": "info", "message": "Email already subscribed."}), 200
+
+        # Add subscriber
+        new_sub = Subscriber(email=email)
+        db.session.add(new_sub)
+        db.session.commit()
+
+        # Send Welcome Email
+        try:
+            msg = Message(
+                subject="Welcome to GospelTube 🙌",
+                recipients=[email],
+                body=f"Hello!\n\nThank you for subscribing to GospelTube. Stay tuned for the latest videos and updates.\n\nBlessings,\nGospelTube Team"
+            )
+            mail.send(msg)
+        except Exception as e:
+            print("Welcome email failed:", e)
+
+        return jsonify({"status": "success", "message": "Subscribed successfully 🙌"}), 200
+
+    except Exception as e:
+        print("Subscribe error:", e)
+        return jsonify({"status": "error", "message": "Subscription failed. Try again."}), 500
 
 @app.route("/search")
 def search():
-    q = request.args.get("q", "")
+    q = request.args.get("q", "").strip()
     videos = Video.query.filter(Video.title.ilike(f"%{q}%")).all() if q else []
     return render_template("search_results.html", videos=videos, query=q)
 
-# =========================
-# ADMIN AUTH
-# =========================
+@app.route("/privacy-policy")
+def privacy_policy():
+    return render_template("privacy.html")
+
+# =====================================================
+# CATEGORY PAGES
+# =====================================================
+@app.route("/category-page/<string:category_slug>")
+def category_landing_page(category_slug):
+    main_category = Category.query.filter_by(slug=category_slug).first_or_404()
+    main_videos = Video.query.filter_by(category_id=main_category.id)\
+                             .order_by(Video.date_added.desc()).limit(10).all()
+    subcategory_blocks = []
+    for sub in main_category.children:
+        sub_videos = Video.query.filter_by(category_id=sub.id)\
+                                .order_by(Video.date_added.desc()).limit(10).all()
+        if sub_videos:
+            subcategory_blocks.append({"category": sub, "videos": sub_videos})
+    return render_template(
+        "category_landing_page.html",
+        main_category=main_category,
+        main_videos=main_videos,
+        subcategory_blocks=subcategory_blocks
+    )
+
+# =====================================================
+# ADMIN ROUTES
+# =====================================================
 @app.route("/admin", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        if (
-            request.form.get("username") == ADMIN_USERNAME
-            and check_password_hash(ADMIN_PASSWORD_HASH, request.form.get("password"))
-        ):
+        if request.form.get("username") == ADMIN_USERNAME and \
+           check_password_hash(ADMIN_PASSWORD_HASH, request.form.get("password")):
             session["admin"] = True
-            return redirect(url_for("admin_dashboard"))
-        flash("Invalid login", "danger")
-
+            flash("Logged in successfully!", "success")
+            return redirect(url_for("manage_videos"))
+        flash("Invalid credentials.", "danger")
     return render_template("admin_login.html")
 
-
 @app.route("/admin/logout")
+@admin_required
 def admin_logout():
     session.clear()
+    flash("Logged out successfully.", "success")
     return redirect(url_for("admin_login"))
 
-# =========================
-# ADMIN DASHBOARD
-# =========================
-@app.route("/admin/dashboard")
-def admin_dashboard():
-    admin_required()
+@app.route("/admin/videos")
+@admin_required
+def manage_videos():
     return render_template(
-        "admin_dashboard.html",
+        "admin_videos.html",
         videos=Video.query.order_by(Video.date_added.desc()).all(),
-        categories=Category.query.all()
+        categories=Category.query.order_by(Category.name.asc()).all()
     )
 
-# =========================
-# CATEGORY MANAGEMENT
-# =========================
-@app.route("/admin/categories", methods=["GET", "POST"])
-def manage_categories():
-    admin_required()
-
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        parent_id = request.form.get("parent_id") or None
-
-        if name:
-            db.session.add(Category(name=name, parent_id=parent_id))
-            db.session.commit()
-            flash("Category added successfully.", "success")
-
-        return redirect(url_for("manage_categories"))
-
-    return render_template("admin_categories.html", categories=Category.query.all())
-
-
-@app.route("/admin/categories/edit/<int:id>", methods=["GET", "POST"])
-def edit_category(id):
-    admin_required()
-    category = Category.query.get_or_404(id)
-
-    if request.method == "POST":
-        category.name = request.form.get("name", "").strip()
-        category.parent_id = request.form.get("parent_id") or None
-        db.session.commit()
-        flash("Category updated successfully.", "success")
-        return redirect(url_for("manage_categories"))
-
-    categories = Category.query.filter(Category.id != id).all()
-    return render_template("admin_edit_category.html", category=category, categories=categories)
-
-
-@app.route("/admin/categories/delete/<int:id>", methods=["POST"])
-def delete_category(id):
-    admin_required()
-    category = Category.query.get_or_404(id)
-
-    if category.videos:
-        flash("Cannot delete category with videos.", "danger")
-    else:
-        db.session.delete(category)
-        db.session.commit()
-        flash("Category deleted successfully.", "success")
-
-    return redirect(url_for("manage_categories"))
-
-
-@app.route("/admin/videos")
-def manage_videos():
-    videos = Video.query.all()
-    return render_template("manage_videos.html", videos=videos)
-
-
-@app.route("/admin/videos/edit/<int:video_id>", methods=["GET","POST"])
-def edit_video(video_id):
-    video = Video.query.get_or_404(video_id)
-    categories = Category.query.all()
-
-    if request.method == "POST":
-        video.title = request.form["title"]
-        video.category_id = request.form.get("category_id") or None
-        video.translated_link = request.form.get("translated_link")
-        video.download_link = request.form.get("download_link")
-        db.session.commit()
-        flash("Video updated successfully", "success")
+@app.route("/admin/videos/add", methods=["POST"])
+@admin_required
+def add_video():
+    video_id = extract_video_id(request.form.get("youtube_link", ""))
+    if not video_id:
+        flash("Invalid YouTube link.", "danger")
+        return redirect(url_for("manage_videos"))
+    if Video.query.filter_by(video_id=video_id).first():
+        flash("Video already exists.", "warning")
         return redirect(url_for("manage_videos"))
 
-    return render_template("edit_video.html", video=video, categories=categories)
+    video = Video(
+        title=request.form.get("title"),
+        description=request.form.get("description"),
+        category_id=request.form.get("category_id") or None,
+        video_id=video_id,
+        translated_link=request.form.get("drive_link"),
+        download_link=request.form.get("mediafire_link")
+    )
+    db.session.add(video)
+    db.session.commit()
+    
+    # =========================
+    # Notify all subscribers
+    # =========================
+    subscribers = Subscriber.query.all()
+    for sub in subscribers:
+        try:
+            msg = Message(
+                subject=f"New Video Added: {video.title}",
+                recipients=[sub.email],
+                body=f"Hello!\n\nA new video '{video.title}' has been added to GospelTube.\nWatch it here: {url_for('video_page', video_id=video.video_id, _external=True)}\n\nBlessings,\nGospelTube Team"
+            )
+            mail.send(msg)
+        except Exception as e:
+            print(f"Notification email failed for {sub.email}:", e)
 
+    flash("Video added successfully ✅", "success")
+    return redirect(url_for("manage_videos"))
 
-@app.route("/admin/videos/delete/<int:video_id>")
+@app.route("/admin/videos/<int:video_id>/edit", methods=["GET", "POST"], endpoint="edit_video")
+@admin_required
+def edit_video(video_id):
+    video = Video.query.get_or_404(video_id)
+    categories = Category.query.order_by(Category.name.asc()).all()
+    if request.method == "POST":
+        video.title = request.form.get("title", video.title)
+        video.description = request.form.get("description", video.description)
+        video.category_id = request.form.get("category_id") or None
+        video.translated_link = request.form.get("drive_link")
+        video.download_link = request.form.get("mediafire_link")
+        db.session.commit()
+        flash("Video updated successfully ✅", "success")
+        return redirect(url_for("manage_videos"))
+    return render_template("admin_edit_video.html", video=video, categories=categories)
+
+@app.route("/admin/videos/<int:video_id>/delete", methods=["POST"], endpoint="delete_video")
+@admin_required
 def delete_video(video_id):
     video = Video.query.get_or_404(video_id)
     db.session.delete(video)
     db.session.commit()
-    flash("Video deleted", "success")
+    flash("Video deleted successfully ✅", "success")
     return redirect(url_for("manage_videos"))
-    
-# =========================
-# VIDEO MANAGEMENT
-# =========================
-@app.route("/admin/videos/add", methods=["GET", "POST"])
-def add_video_view():
-    admin_required()
-    categories = Category.query.all()
 
+# =====================================================
+# ADMIN CATEGORY ROUTES
+# =====================================================
+@app.route("/admin/categories", methods=["GET", "POST"])
+@admin_required
+def manage_categories():
     if request.method == "POST":
-        youtube_url = request.form.get("youtube_url", "").strip()
-        video_id = extract_video_id(youtube_url)
-
-        if not video_id:
-            flash("Invalid YouTube URL.", "danger")
-            return redirect(url_for("add_video_view"))
-
-        details = fetch_video_details(video_id)
-        if not details:
-            flash("Failed to fetch video details.", "danger")
-            return redirect(url_for("add_video_view"))
-
-        category_id = request.form.get("category_id") or None
-
-        video = Video.query.filter_by(video_id=video_id).first()
-        if not video:
-            video = Video(video_id=video_id)
-            db.session.add(video)
-
-        video.title = details["snippet"]["title"]
-        video.channel_id = details["snippet"]["channelId"]
-        video.category_id = category_id
-        video.translated_link = request.form.get("translated_link")
-        video.download_link = request.form.get("download_link")
-
+        name = request.form.get("name", "").strip()
+        parent_id = request.form.get("parent_id") or None
+        if not name:
+            flash("Category name required.", "danger")
+            return redirect(url_for("manage_categories"))
+        if Category.query.filter_by(name=name).first():
+            flash("Category already exists.", "warning")
+            return redirect(url_for("manage_categories"))
+        slug = slugify(name)
+        counter = 1
+        base_slug = slug
+        while Category.query.filter_by(slug=slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+        db.session.add(Category(name=name, parent_id=parent_id, slug=slug))
         db.session.commit()
-        flash("Video saved successfully.", "success")
-        return redirect(url_for("admin_dashboard"))
+        flash("Category added successfully.", "success")
+    return render_template("admin_categories.html", categories=Category.query.order_by(Category.name.asc()).all())
 
-    return render_template("admin_add_video.html", categories=categories)
-# =========================
+@app.route("/admin/categories/<int:category_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_category(category_id):
+    category = Category.query.get_or_404(category_id)
+    categories = Category.query.filter(Category.id != category.id).all()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        parent_id = request.form.get("parent_id") or None
+        if not name:
+            flash("Category name is required.", "danger")
+            return redirect(url_for("edit_category", category_id=category.id))
+        category.name = name
+        new_slug = slugify(name)
+        if new_slug != category.slug:
+            counter = 1
+            base_slug = new_slug
+            while Category.query.filter(Category.slug == new_slug, Category.id != category.id).first():
+                new_slug = f"{base_slug}-{counter}"
+                counter += 1
+            category.slug = new_slug
+        category.parent_id = parent_id
+        db.session.commit()
+        flash("Category updated successfully ✅", "success")
+        return redirect(url_for("manage_categories"))
+    return render_template("admin_edit_category.html", category=category, categories=categories)
+
+@app.route("/admin/categories/<int:category_id>/delete", methods=["POST"], endpoint="delete_category")
+@admin_required
+def delete_category(category_id):
+    category = Category.query.get_or_404(category_id)
+    if category.videos:
+        flash("Cannot delete category with videos. Remove videos first.", "danger")
+        return redirect(url_for("manage_categories"))
+    if category.children:
+        flash("Cannot delete category with subcategories.", "warning")
+        return redirect(url_for("manage_categories"))
+    db.session.delete(category)
+    db.session.commit()
+    flash("Category deleted successfully ✅", "success")
+    return redirect(url_for("manage_categories"))
+
+# =====================================================
+# VIEW ALL VIDEOS
+# =====================================================
+@app.route("/videos")
+def view_all_videos():
+    page = request.args.get("page", 1, type=int)
+    per_page = 10
+    videos_pagination = Video.query.order_by(Video.date_added.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template("view_all.html", videos=videos_pagination.items, pagination=videos_pagination)
+
+# =====================================================
 # RUN APP
-# =========================
+# =====================================================
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        for category in Category.query.filter(Category.slug == None).all():
+            category.slug = slugify(category.name)
+        db.session.commit()
     app.run(debug=True)

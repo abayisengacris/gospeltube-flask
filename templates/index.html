@@ -1,100 +1,197 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>GospelTube | Gospel Music, Films & Preachings</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+{% extends "base.html" %}
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+{% block title %}
+Zacufilms | Gospel Videos
+{% endblock %}
 
-    <style>
-        body { background-color: #0f172a; color: #e5e7eb; font-family: "Segoe UI", system-ui, sans-serif; }
-        .navbar-brand { font-weight: 900; font-size: 1.6rem; }
-        .hero { background: radial-gradient(circle at top, #22c55e, #020617); padding: 80px 20px; border-radius: 20px; margin: 30px 0; text-align: center; }
-        .hero h1 { font-weight: 900; font-size: 2.8rem; }
-        .hero p { color: #d1fae5; font-size: 1.1rem; }
-        .category-section { margin-bottom: 50px; }
-        .category-title { font-size: 1.6rem; font-weight: 800; color: #22c55e; }
-        .video-row { display: flex; overflow-x: auto; gap: 16px; padding-bottom: 10px; }
-        .video-card { min-width: 260px; background-color: #020617; border-radius: 14px; overflow: hidden; transition: transform 0.3s ease; }
-        .video-card:hover { transform: scale(1.05); }
-        .video-thumb { width: 100%; height: 150px; object-fit: cover; }
-        .video-info { padding: 12px; }
-        .video-title { font-size: 0.95rem; font-weight: 600; }
-        .video-meta { font-size: 0.8rem; color: #9ca3af; }
-        footer { margin-top: 80px; padding: 25px; background-color: #020617; text-align: center; font-size: 0.9rem; color: #9ca3af; }
-    </style>
-</head>
-<body>
+{% block content %}
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-black shadow-sm">
-    <div class="container">
-        <a class="navbar-brand" href="{{ url_for('index') }}">🎬 GospelTube</a>
-        <form class="d-flex ms-auto" method="get" action="{{ url_for('search') }}">
-            <input class="form-control me-2" type="search" name="q" placeholder="Search videos..." required>
-            <button class="btn btn-outline-primary" type="submit">Search</button>
-        </form>
-    </div>
-</nav>
+<style>
+/* ============================= */
+/* FEATURED CAROUSEL */
+/* ============================= */
 
-<div class="container">
-    <div class="hero">
-        <h1>Gospel Music • Films • Preachings</h1>
-        <p>Inspired by faith. Powered by media.</p>
-    </div>
-</div>
+body {
+    background-color: #0f0f0f;
+    color: #fff;
+}
+.navbar-brand {
+    font-weight: 900;
+    font-size: 1.7rem;
+}
+.carousel-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 14px;
+}
 
-<div class="container">
+/* ============================= */
+/* SECTION HEADER */
+/* ============================= */
+.section-header {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
 
-{% if homepage_data %}
-    {% for block in homepage_data %}
-        <div class="category-section">
-            <div class="d-flex justify-content-between align-items-center">
-                <h2 class="category-title">{{ block.category.name }}</h2>
-                <a href="{{ url_for('category_videos', category_id=block.category.id) }}" class="btn btn-sm btn-outline-success">View All</a>
-            </div>
+/* ============================= */
+/* HORIZONTAL VIDEO ROW */
+/* ============================= */
+.video-row {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scroll-behavior: smooth;
+}
 
-            <div class="video-row">
+.video-row::-webkit-scrollbar {
+    height: 8px;
+}
+.video-row::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 10px;
+}
 
-                {% for video in block.parent_videos %}
-                    <div class="video-card">
-                        <a href="{{ url_for('video_page', video_id=video.video_id) }}">
-                            <img class="video-thumb" src="https://img.youtube.com/vi/{{ video.video_id }}/hqdefault.jpg" alt="{{ video.title }}">
-                        </a>
-                        <div class="video-info">
-                            <div class="video-title">{{ video.title }}</div>
-                            <div class="video-meta">{{ block.category.name }}</div>
-                        </div>
-                    </div>
-                {% endfor %}
+/* ============================= */
+/* VIDEO CARD */
+/* ============================= */
+.video-card {
+    width: 260px;
+    flex-shrink: 0;
+    background: #0f172a;
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
 
-                {% for child in block.children %}
-                    {% for video in child.videos %}
-                        <div class="video-card">
-                            <a href="{{ url_for('video_page', video_id=video.video_id) }}">
-                                <img class="video-thumb" src="https://img.youtube.com/vi/{{ video.video_id }}/hqdefault.jpg" alt="{{ video.title }}">
-                            </a>
-                            <div class="video-info">
-                                <div class="video-title">{{ video.title }}</div>
-                                <div class="video-meta">{{ child.category.name }}</div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% endfor %}
+.video-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+}
 
+.video-thumb {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+
+.video-info {
+    padding: 10px 12px;
+}
+
+.video-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.video-meta {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+/* ============================= */
+/* RESPONSIVE */
+/* ============================= */
+@media (max-width: 768px) {
+    .carousel-item img {
+        height: 240px;
+    }
+
+    .video-card {
+        width: 200px;
+    }
+}
+</style>
+
+<!-- ========================= -->
+<!-- FEATURED VIDEOS -->
+<!-- ========================= -->
+{% if featured_videos %}
+<div id="featuredCarousel"
+     class="carousel slide mb-5 shadow"
+     data-bs-ride="carousel">
+
+    <div class="carousel-inner">
+
+        {% for video in featured_videos %}
+        <div class="carousel-item {% if loop.first %}active{% endif %}">
+            <a href="{{ url_for('video_page', video_id=video.video_id) }}">
+                <img src="https://img.youtube.com/vi/{{ video.video_id }}/maxresdefault.jpg"
+                     alt="{{ video.title }}">
+            </a>
+
+            <div class="carousel-caption text-start">
+                <div class="bg-dark bg-opacity-75 p-3 rounded">
+                    <h5 class="fw-bold mb-0">{{ video.title }}</h5>
+                </div>
             </div>
         </div>
-    {% endfor %}
-{% else %}
-    <p class="text-warning">No videos available yet.</p>
-{% endif %}
+        {% endfor %}
+
+    </div>
+
+    <button class="carousel-control-prev"
+            type="button"
+            data-bs-target="#featuredCarousel"
+            data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+    </button>
+
+    <button class="carousel-control-next"
+            type="button"
+            data-bs-target="#featuredCarousel"
+            data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+    </button>
 
 </div>
+{% endif %}
 
-<footer>
-    © {{ datetime.utcnow().year }} GospelTube • Inspired by Oschakulfilms
-</footer>
+<!-- ========================= -->
+<!-- CATEGORY SECTIONS (PARENT ONLY) -->
+<!-- ========================= -->
+{% for block in homepage_data %}
+    {% if block.category.parent_id is none %} {# Only parent categories #}
+    <div class="mb-5">
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="section-header">
+                {{ block.category.name }}
+            </div>
+
+            <a href="{{ url_for('category_landing_page', category_slug=block.category.slug) }}"
+               class="text-primary text-decoration-none">
+                <button>View All →</button>
+            </a>
+        </div>
+
+        {% if block.parent_videos %}
+        <div class="video-row">
+            {% for v in block.parent_videos %}
+            <div class="video-card"
+                 onclick="location.href='{{ url_for('video_page', video_id=v.video_id) }}'">
+
+                <img class="video-thumb"
+                     src="https://img.youtube.com/vi/{{ v.video_id }}/hqdefault.jpg"
+                     alt="{{ v.title }}">
+
+                <div class="video-info">
+                    <div class="video-title">{{ v.title }}</div>
+                    <div class="video-meta">
+                        {{ v.views or 0 }} views
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+    {% endif %}
+{% endfor %}
+
+{% endblock %}

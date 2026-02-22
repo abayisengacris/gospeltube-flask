@@ -1,215 +1,382 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>{{ video.title }} | GospelTube</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<title>{{ video.title }} | GospelTube</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <style>
-        body {
-            background-color: #0f0f0f;
-            color: #fff;
-        }
+<style>
+body {
+    background-color: #0f0f0f;
+    color: #fff;
+}
+.navbar-brand {
+    font-weight: 900;
+    font-size: 1.7rem;
+}
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+.video-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.related-scroll {
+    display: flex;
+    gap: 15px;
+    overflow-x: auto;
+}
+.related-video {
+    width: 48%;
+    flex: 0 0 auto;
+    cursor: pointer;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.related-video:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.related-thumb {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+.related-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-top: 5px;
+    color: #fff;
+}
+/* YouTube-style Play Button */
+.play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #e50914;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.play-overlay::before {
+    content: "";
+    display: block;
+    margin-left: 4px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 10px 0 10px 16px;
+    border-color: transparent transparent transparent #fff;
+}
+.related-video:hover .play-overlay {
+    transform: translate(-50%, -50%) scale(1.1);
+}
 
-        /* Sticky Navbar */
-        .navbar {
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-
-        /* Sticky Video Container */
-        .video-container {
-            position: sticky;
-            top: 80px; /* navbar height */
-            z-index: 10;
-            margin-bottom: 20px;
-        }
-
-        .video-title {
-            font-size: 1.6rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .action-buttons a {
-            margin-left: 10px;
-        }
-
-        .related-thumb {
-            width: 100%;
-            height: 100px;
-            object-fit: cover;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-
-        .related-thumb:hover {
-            transform: scale(1.05);
-        }
-
-        .related-title {
-            font-size: 0.92rem;
-            font-weight: 600;
-            line-height: 1.3;
-            color: #fff;
-        }
-
-        .related-title:hover {
-            text-decoration: underline;
-        }
-
-        .related-scroll {
-            max-height: 80vh;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-
-        .related-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .related-scroll::-webkit-scrollbar-thumb {
-            background-color: #555;
-            border-radius: 3px;
-        }
-
-        @media (max-width: 992px) {
-            .video-container {
-                position: relative;
-                top: 0;
-                margin-bottom: 20px;
-            }
-
-            .related-scroll {
-                max-height: none;
-                overflow-y: visible;
-            }
-        }
-    </style>
+/* SHARE & SUBSCRIBE MODALS */
+.share-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+.share-box {
+    background: #fff;
+    color: #000;
+    width: 340px;
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+}
+</style>
 </head>
+
 <body>
 
-<!-- HEADER -->
 <nav class="navbar navbar-dark bg-black px-3">
-    <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">🎵 GospelTube</a>
-    <form class="d-flex ms-auto" method="GET" action="{{ url_for('search') }}">
-        <input class="form-control form-control-sm me-2" type="search" name="q" placeholder="Search..." aria-label="Search">
-        <button class="btn btn-outline-light btn-sm" type="submit">Search</button>
-    </form>
+<a class="navbar-brand" href="{{ url_for('index') }}">🎬 GospelTube </a>
+<form class="d-flex ms-auto" method="GET" action="{{ url_for('search') }}">
+    <input class="form-control form-control-sm me-2" type="search" name="q" placeholder="Search...">
+    <button class="btn btn-outline-light btn-sm" type="submit">Search</button>
+</form>
 </nav>
 
 <div class="container-fluid mt-3">
-    <div class="row">
+<div class="row">
 
-        <!-- MAIN VIDEO -->
-        <div class="col-lg-8 col-md-12 px-4">
-            <div class="video-container">
-                <div class="ratio ratio-16x9 mb-3">
-                    <iframe id="mainVideo"
-                            src="https://www.youtube.com/embed/{{ video.video_id }}?enablejsapi=1&rel=0&mute=1"
-                            title="{{ video.title }}"
-                            allowfullscreen
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
-                    </iframe>
-                </div>
+<!-- MAIN VIDEO -->
+<div class="col-lg-8 col-md-12 px-4">
 
-                <!-- Video Title & Buttons -->
-                <div class="video-title">
-                    <span>{{ video.title }}</span>
-                    <span class="action-buttons">
-                        {% if video.translated_link %}
-                            <a href="{{ video.translated_link }}" target="_blank" class="btn btn-danger btn-sm">▶ Reba Agasobanuye</a>
-                        {% endif %}
-                        {% if video.download_link %}
-                            <a href="{{ video.download_link }}" target="_blank" class="btn btn-success btn-sm">⬇ Download Film</a>
-                        {% endif %}
-                    </span>
-                </div>
-
-                <!-- Back Button -->
-                <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm mb-3">⬅ Back to Home</a>
-            </div>
-        </div>
-
-        <!-- RELATED VIDEOS -->
-        <div class="col-lg-4 col-md-12 px-3">
-            <h6 class="mb-3 text-uppercase text-secondary">Related Videos</h6>
-            <div class="related-scroll">
-                {% if related_videos %}
-                    {% for rv in related_videos %}
-                        <div class="row mb-3 align-items-start related-video-item" data-video-id="{{ rv.video_id }}">
-                            <div class="col-5">
-                                <img src="https://img.youtube.com/vi/{{ rv.video_id }}/mqdefault.jpg"
-                                     class="related-thumb" alt="{{ rv.title }}">
-                            </div>
-                            <div class="col-7">
-                                <div class="related-title">{{ rv.title }}</div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted">No related videos found.</p>
-                {% endif %}
-            </div>
-        </div>
-
-    </div>
+<div class="ratio ratio-16x9 mb-3" id="mainVideoContainer">
+<div id="player"></div>
 </div>
 
-<!-- YouTube Autoplay Script -->
+<div class="video-title" id="mainVideoTitle">{{ video.title }}</div>
+
+<div class="mb-3">
+<button id="likeBtn" type="button" class="btn btn-outline-primary btn-sm" data-video-id="{{ video.video_id }}">
+    👍 Like (<span id="likeCount">{{ video.likes }}</span>)
+</button>
+
+<button id="shareBtn" type="button" class="btn btn-outline-info btn-sm">
+🔗 Share
+</button>
+
+<!-- UPDATED SUBSCRIBE BUTTON -->
+<button id="subscribeBtn" type="button" class="btn btn-outline-danger btn-sm">
+🔔 Subscribe
+</button>
+</div>
+
+<a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm">⬅ Back</a>
+</div>
+
+<!-- RELATED VIDEOS -->
+<div class="col-lg-4 col-md-12 px-3">
+<h6 class="text-secondary mb-3">Related Videos</h6>
+<div class="related-scroll">
+{% for rv in related_videos %}
+<div class="related-video" data-video-id="{{ rv.video_id }}" data-video-title="{{ rv.title }}">
+    <img src="https://img.youtube.com/vi/{{ rv.video_id }}/hqdefault.jpg" class="related-thumb">
+    <div class="related-title">{{ rv.title }}</div>
+    <span class="play-overlay"></span>
+</div>
+{% endfor %}
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- SHARE MODAL -->
+<div id="shareModal" class="share-modal">
+<div class="share-box">
+<h6 class="mb-2">Share this video</h6>
+
+<input id="shareLink" class="form-control form-control-sm mb-3" readonly>
+
+<div class="d-flex flex-wrap gap-2 justify-content-center mb-3">
+<a id="wa" class="btn btn-success btn-sm" target="_blank">WhatsApp</a>
+<a id="fb" class="btn btn-primary btn-sm" target="_blank">Facebook</a>
+<a id="tw" class="btn btn-dark btn-sm" target="_blank">X</a>
+<a id="tg" class="btn btn-info btn-sm" target="_blank">Telegram</a>
+<a id="em" class="btn btn-secondary btn-sm" target="_blank">Email</a>
+</div>
+
+<div class="d-flex justify-content-between">
+<button id="copyBtn" type="button" class="btn btn-outline-secondary btn-sm">📋 Copy</button>
+<button id="closeShare" type="button" class="btn btn-outline-danger btn-sm">Close</button>
+</div>
+</div>
+</div>
+
+<!-- SUBSCRIBE MODAL -->
+<div id="subscribeModal" class="share-modal">
+  <div class="share-box">
+    <h6 class="mb-2">Subscribe for Updates</h6>
+    <input id="subscriberEmail" type="email" class="form-control form-control-sm mb-3" placeholder="Enter your email" required>
+    <div class="d-flex justify-content-between">
+      <button id="subscribeConfirmBtn" type="button" class="btn btn-outline-danger btn-sm">Subscribe</button>
+      <button id="closeSubscribe" type="button" class="btn btn-outline-secondary btn-sm">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- YOUTUBE IFRAME API -->
 <script src="https://www.youtube.com/iframe_api"></script>
+
 <script>
-    var player;
-    var relatedVideos = Array.from(document.querySelectorAll('.related-video-item')).map(e => e.dataset.videoId);
+let player;
+const relatedVideos = [
+{% for rv in related_videos %}
+  {id: "{{ rv.video_id }}", title: "{{ rv.title }}"},
+{% endfor %}
+];
+let currentIndex = 0;
 
-    function onYouTubeIframeAPIReady() {
-        player = new YT.Player('mainVideo', {
-            events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
-        });
-    }
-
-    function onPlayerReady(event) {
-        // Play video when visible
-        const videoContainer = document.querySelector('.video-container');
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if(entry.isIntersecting) {
-                    player.playVideo();
-                } else {
-                    player.pauseVideo();
-                }
-            });
-        }, { threshold: 0.5 });
-
-        observer.observe(videoContainer);
-
-        // Play related video on hover
-        document.querySelectorAll('.related-thumb').forEach((thumb, index) => {
-            thumb.addEventListener('mouseenter', () => {
-                player.loadVideoById(relatedVideos[index]);
-            });
-        });
-    }
-
-    // Autoplay next video when current ends
-    function onPlayerStateChange(event) {
-        if(event.data === YT.PlayerState.ENDED) {
-            let currentId = player.getVideoData().video_id;
-            let currentIndex = relatedVideos.indexOf(currentId);
-            let nextIndex = (currentIndex + 1) % relatedVideos.length;
-            player.loadVideoById(relatedVideos[nextIndex]);
+// Initialize YouTube Player
+function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+        videoId: "{{ video.video_id }}",
+        events: {
+            'onStateChange': onPlayerStateChange
         }
+    });
+}
+
+// Auto-play next video when current ends
+function onPlayerStateChange(event) {
+    if (event.data === YT.PlayerState.ENDED) {
+        playNextVideo();
     }
+}
+
+function playNextVideo() {
+    currentIndex++;
+    if(currentIndex >= relatedVideos.length) currentIndex = 0; // loop to first
+    const nextVideo = relatedVideos[currentIndex];
+    player.loadVideoById(nextVideo.id);
+    document.getElementById("mainVideoTitle").textContent = nextVideo.title;
+}
+
+// SHARE + RELATED VIDEOS CLICK & HOVER
+document.addEventListener("DOMContentLoaded", () => {
+
+  const shareBtn = document.getElementById("shareBtn");
+  const modal = document.getElementById("shareModal");
+  const linkInput = document.getElementById("shareLink");
+
+  function isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
+
+  shareBtn.addEventListener("click", async () => {
+      const url = window.location.href;
+      const title = document.title;
+      if (isMobile() && navigator.share) {
+          try { await navigator.share({title, url}); return; } 
+          catch { openShareModal(title, url); }
+      } else { openShareModal(title, url); }
+  });
+
+  function openShareModal(title, url) {
+      linkInput.value = url;
+      modal.style.display = "flex";
+      document.getElementById("wa").href = `https://wa.me/?text=${encodeURIComponent(title + " " + url)}`;
+      document.getElementById("fb").href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+      document.getElementById("tw").href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
+      document.getElementById("tg").href = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`;
+      document.getElementById("em").href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(url)}`;
+  }
+
+  document.getElementById("closeShare").addEventListener("click", () => { modal.style.display = "none"; });
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(linkInput.value); alert("Link copied!"); }
+      catch { linkInput.select(); document.execCommand("copy"); alert("Link copied!"); }
+  });
+
+  const relatedCards = document.querySelectorAll(".related-video");
+  relatedCards.forEach((card, index) => {
+      const videoId = card.dataset.videoId;
+      const videoTitle = card.dataset.videoTitle;
+
+      // Update main video on click
+      card.addEventListener("click", () => {
+          player.loadVideoById(videoId);
+          document.getElementById("mainVideoTitle").textContent = videoTitle;
+          currentIndex = index;
+      });
+
+      // Hover preview
+      let previewIframe;
+      card.addEventListener("mouseenter", () => {
+          if(!previewIframe){
+              previewIframe = document.createElement("iframe");
+              previewIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0`;
+              previewIframe.style.position = "absolute";
+              previewIframe.style.top = 0;
+              previewIframe.style.left = 0;
+              previewIframe.style.width = "100%";
+              previewIframe.style.height = "100%";
+              previewIframe.style.borderRadius = "8px";
+              previewIframe.style.pointerEvents = "none";
+              card.appendChild(previewIframe);
+              card.querySelector(".related-thumb").style.display = "none";
+          } else { previewIframe.style.display = "block"; card.querySelector(".related-thumb").style.display = "none"; }
+      });
+
+      card.addEventListener("mouseleave", () => {
+          if(previewIframe) previewIframe.style.display = "none";
+          card.querySelector(".related-thumb").style.display = "block";
+      });
+  });
+
+  // LIKE BUTTON FUNCTION
+  const likeBtn = document.getElementById("likeBtn");
+  const likeCountSpan = document.getElementById("likeCount");
+  const videoIdLike = likeBtn.dataset.videoId;
+
+  if (!localStorage.getItem(`liked_${videoIdLike}`)) {
+      likeBtn.addEventListener("click", async () => {
+          try {
+              const response = await fetch(`/like_video/${videoIdLike}`, { method: "POST" });
+              if (response.ok) {
+                  const data = await response.json();
+                  likeCountSpan.textContent = data.likes;
+                  likeBtn.disabled = true;
+                  localStorage.setItem(`liked_${videoIdLike}`, true);
+              } else {
+                  alert("Failed to like the video. Try again.");
+              }
+          } catch (err) {
+              console.error(err);
+              alert("Error occurred while liking the video.");
+          }
+      });
+  } else {
+      likeBtn.disabled = true;
+  }
+
+  // SUBSCRIBE BUTTON FUNCTIONALITY
+  const subscribeBtn = document.getElementById("subscribeBtn");
+  const subscribeModal = document.getElementById("subscribeModal");
+  const closeSubscribe = document.getElementById("closeSubscribe");
+  const subscribeConfirmBtn = document.getElementById("subscribeConfirmBtn");
+  const subscriberEmailInput = document.getElementById("subscriberEmail");
+
+  subscribeBtn.addEventListener("click", () => {
+      subscribeModal.style.display = "flex";
+  });
+
+  closeSubscribe.addEventListener("click", () => {
+      subscribeModal.style.display = "none";
+  });
+
+  subscribeConfirmBtn.addEventListener("click", async () => {
+      const email = subscriberEmailInput.value.trim();
+      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+          alert("Please enter a valid email.");
+          return;
+      }
+
+      try {
+          const response = await fetch("/subscribe", {
+              method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({ email })
+          });
+
+          if (response.ok) {
+              alert("Thank you for subscribing!");
+              subscriberEmailInput.value = "";
+              subscribeModal.style.display = "none";
+          } else {
+              const data = await response.json();
+              alert(data.message || "Subscription failed. Try again.");
+          }
+      } catch (err) {
+          console.error(err);
+          alert("Error occurred. Please try again.");
+      }
+  });
+
+});
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 </body>
 </html>
