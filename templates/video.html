@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>{{ video.title }} | GospelTube</title>
+<title>{{ video.title }} | Zacufilms </title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -104,13 +104,32 @@ body {
     border-radius: 12px;
     text-align: center;
 }
+/* MOBILE STICKY VIDEO */
+@media (max-width: 768px) {
+
+    #stickyVideoWrapper {
+        position: sticky;
+        top: 0;
+        z-index: 1050;
+        background: #000;
+    }
+
+    #mainVideoContainer {
+        border-radius: 0;
+    }
+
+    /* Push content below the sticky video */
+    #videoScrollableContent {
+        padding-top: 10px;
+    }
+}
 </style>
 </head>
 
 <body>
 
 <nav class="navbar navbar-dark bg-black px-3">
-<a class="navbar-brand" href="{{ url_for('index') }}">🎬 GospelTube </a>
+<a class="navbar-brand" href="{{ url_for('index') }}">🎬 Zacufilms </a>
 <form class="d-flex ms-auto" method="GET" action="{{ url_for('search') }}">
     <input class="form-control form-control-sm me-2" type="search" name="q" placeholder="Search...">
     <button class="btn btn-outline-light btn-sm" type="submit">Search</button>
@@ -120,28 +139,65 @@ body {
 <div class="container-fluid mt-3">
 <div class="row">
 
-<!-- MAIN VIDEO -->
-<div class="col-lg-8 col-md-12 px-4">
+<!-- MAIN VIDEO COLUMN -->
+<div class="col-lg-8 col-md-12 px-0">
 
-<div class="ratio ratio-16x9 mb-3" id="mainVideoContainer">
-<div id="player"></div>
-</div>
+    <!-- STICKY VIDEO WRAPPER -->
+    <div id="stickyVideoWrapper">
+        <div class="ratio ratio-16x9" id="mainVideoContainer">
+            <div id="player"></div>
+        </div>
+    </div>
 
-<div class="video-title" id="mainVideoTitle">{{ video.title }}</div>
+    <!-- SCROLLABLE CONTENT -->
+    <div id="videoScrollableContent" class="px-4">
 
-<div class="mb-3">
-<button id="likeBtn" type="button" class="btn btn-outline-primary btn-sm" data-video-id="{{ video.video_id }}">
-    👍 Like (<span id="likeCount">{{ video.likes }}</span>)
-</button>
+        <div class="video-title" id="mainVideoTitle">
+            {{ video.title }}
+        </div>
 
-<button id="shareBtn" type="button" class="btn btn-outline-info btn-sm">
-🔗 Share
-</button>
+    <!-- LIKE -->
+    <button id="likeBtn"
+            type="button"
+            class="btn btn-outline-primary btn-sm"
+            data-video-id="{{ video.video_id }}">
+        👍 Like (<span id="likeCount">{{ video.likes }}</span>)
+    </button>
 
-<!-- UPDATED SUBSCRIBE BUTTON -->
-<button id="subscribeBtn" type="button" class="btn btn-outline-danger btn-sm">
-🔔 Subscribe
-</button>
+    <!-- SHARE -->
+    <button id="shareBtn"
+            type="button"
+            class="btn btn-outline-info btn-sm">
+        🔗 Share
+    </button>
+
+    <!-- SUBSCRIBE (BIG SPACE AFTER THIS ONLY) -->
+    <button id="subscribeBtn"
+            type="button"
+            class="btn btn-outline-danger btn-sm me-5">
+        🔔 Subscribe
+    </button>
+
+    <!-- DOWNLOAD (MEDIAFIRE) -->
+    {% if video.download_link %}
+    <a href="{{ video.download_link }}"
+       class="btn btn-outline-success btn-sm"
+       target="_blank"
+       rel="noopener noreferrer">
+        ⬇ Download
+    </a>
+    {% endif %}
+
+    <!-- REBA AGASOBANUYE (NO SPACE FROM DOWNLOAD) -->
+    {% if video.translated_link %}
+    <a href="{{ video.translated_link }}"
+       class="btn btn-primary btn-sm"
+       target="_blank"
+       rel="noopener noreferrer">
+        🎥 Reba Agasobanuye
+    </a>
+    {% endif %}
+
 </div>
 
 <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm">⬅ Back</a>
