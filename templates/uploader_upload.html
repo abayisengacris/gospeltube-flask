@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Uploader Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    /* Container */
+    .container {
+        max-width: 1100px;
+        margin: 30px auto;
+        padding: 20px;
+    }
+
+    h2 {
+        margin-bottom: 20px;
+        color: #0d6efd;
+        font-weight: 600;
+    }
+
+    /* Form Styling */
+    form.upload-form {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        padding: 20px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-bottom: 40px;
+    }
+
+    form.upload-form input[type="text"],
+    form.upload-form textarea,
+    form.upload-form select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 5px;
+        border: 1px solid #ced4da;
+        font-size: 0.95rem;
+    }
+
+    form.upload-form textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    form.upload-form button {
+        align-self: flex-start;
+        background-color: #0d6efd;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        font-weight: 600;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    form.upload-form button:hover {
+        background-color: #0b5ed7;
+    }
+
+    /* Table Styling */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    table th,
+    table td {
+        padding: 12px 10px;
+        text-align: center;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    table th {
+        background-color: #0d6efd;
+        color: #fff;
+    }
+
+    table tbody tr:hover {
+        background-color: #f2f8ff;
+        transition: 0.3s;
+    }
+
+    table a {
+        text-decoration: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin: 0 2px;
+    }
+
+    table a.edit {
+        background-color: #ffc107;
+        color: #212529;
+    }
+
+    table a.edit:hover {
+        background-color: #e0a800;
+    }
+
+    table a.delete {
+        background-color: #dc3545;
+        color: #fff;
+    }
+
+    table a.delete:hover {
+        background-color: #b02a37;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        table th, table td {
+            font-size: 0.85rem;
+            padding: 8px 5px;
+        }
+
+        form.upload-form button {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="container">
+    <h2>Upload New Video</h2>
+
+    <!-- Upload Form -->
+    <form class="upload-form" method="POST" action="{{ url_for('add_video') }}">
+        <input type="text" name="title" placeholder="Video Title" required>
+        <textarea name="description" placeholder="Video Description"></textarea>
+
+        <select name="category_id">
+            <option value="">Select Category</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="text" name="youtube_link" placeholder="YouTube Link" required>
+        <input type="text" name="drive_link" placeholder="Google Drive Link (optional)">
+        <input type="text" name="mediafire_link" placeholder="MediaFire Link (optional)">
+
+        <button type="submit">Upload Video</button>
+    </form>
+
+    <hr>
+
+    <h2>My Uploaded Videos</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Views</th>
+                <th>Date Added</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in video_data %}
+            {% set video = item.video %}
+            <tr>
+                <td>{{ video.title }}</td>
+                <td>{{ video.category.name if video.category else "None" }}</td>
+                <td>{{ video.views }}</td>
+                <td>{{ video.date_added.strftime('%Y-%m-%d') }}</td>
+                <td>
+                    {% if session.role == 'admin' or item.editable %}
+                        <a href="{{ url_for('edit_video', video_id=video.id) }}" class="edit">Edit</a>
+                        <form action="{{ url_for('delete_video', video_id=video.id) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="delete" onclick="return confirm('Delete this video?');">Delete</button>
+                        </form>
+                        {% if item.editable %}
+                        <span class="badge bg-success">Editable</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-danger">Locked (48h passed)</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5">No videos uploaded yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

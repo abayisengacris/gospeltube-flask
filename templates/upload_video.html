@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Upload Video{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Upload a New Video</h2>
+    <form method="POST">
+        <div class="mb-3">
+            <label>Title</label>
+            <input type="text" name="title" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>Description</label>
+            <textarea name="description" class="form-control"></textarea>
+        </div>
+        <div class="mb-3">
+            <label>Category</label>
+            <select name="category_id" class="form-control">
+                <option value="">Select Category</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+         <div class="mb-3">
+            <label>YouTube Link</label>
+            <input type="text" name="youtube_link" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>Drive Link (optional)</label>
+            <input type="text" name="drive_link" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label>Mediafire Link (optional)</label>
+            <input type="text" name="mediafire_link" class="form-control">
+        </div>
+        <button type="submit" class="btn btn-success">Upload</button>
+    </form>
+</div>
+{% endblock %}

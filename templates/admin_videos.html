@@ -73,7 +73,7 @@ tr:hover { background:#f1f1f1; }
 <div class="nav">
     <a href="{{ url_for('manage_videos') }}">📺 Videos</a>
     <a href="{{ url_for('manage_categories') }}">📁 Categories</a>
-    <a href="{{ url_for('admin_logout') }}">Logout</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
 </div>
 
 <!-- Flash messages -->
@@ -113,7 +113,32 @@ tr:hover { background:#f1f1f1; }
 
     <button type="submit">Add Video</button>
 </form>
-
+<!-- ====================== Create New User ====================== -->
+<div class="card mt-4">
+    <div class="card-header bg-primary text-white">
+        Create New User (Uploader)
+    </div>
+    <div class="card-body">
+        <form action="{{ url_for('create_user') }}" method="POST">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username" placeholder="e.g., john_uploader" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" placeholder="e.g., Password123" required>
+            </div>
+            <div class="mb-3">
+                <label for="role" class="form-label">Role</label>
+                <select class="form-select" id="role" name="role">
+                    <option value="uploader" selected>Uploader</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success">Create User</button>
+        </form>
+    </div>
+</div>
 <!-- Video List -->
 <h2>All Videos</h2>
 <table>
@@ -127,24 +152,29 @@ tr:hover { background:#f1f1f1; }
         </tr>
     </thead>
     <tbody>
-    {% for v in videos %}
-        <tr>
-            <td>{{ v.title }}</td>
-            <td>{{ v.category.name if v.category else "None" }}</td>
-            <td>{{ v.views }}</td>
-            <td>{{ v.date_added.strftime('%Y-%m-%d') }}</td>
-            <td class="actions">
-                <a class="edit" href="{{ url_for('edit_video', video_id=v.id) }}">Edit</a>
-                <form method="POST" action="{{ url_for('delete_video', video_id=v.id) }}" style="display:inline;" onsubmit="return confirm('Delete this video?');">
-                    <button type="submit" class="delete">Delete</button>
-                </form>
-            </td>
-        </tr>
-    {% else %}
-        <tr>
-            <td colspan="5" style="text-align:center;">No videos added yet.</td>
-        </tr>
-    {% endfor %}
+{% for v in videos %}
+<tr>
+    <td>{{ v.title }}</td>
+    <td>{{ v.category.name if v.category else "None" }}</td>
+    <td>{{ v.views }}</td>
+    <td>{{ v.date_added.strftime('%Y-%m-%d') }}</td>
+    <td class="actions">
+        <!-- Edit button (everyone sees) -->
+        <a class="edit" href="{{ url_for('edit_video', video_id=v.id) }}">Edit</a>
+
+        <!-- Delete button (admin only) -->
+        {% if session.role == "admin" %}
+        <form method="POST" action="{{ url_for('delete_video', video_id=v.id) }}" style="display:inline;" onsubmit="return confirm('Delete this video?');">
+            <button type="submit" class="delete">Delete</button>
+        </form>
+        {% endif %}
+    </td>
+</tr>
+{% else %}
+<tr>
+    <td colspan="5">No videos found.</td>
+</tr>
+{% endfor %}
     </tbody>
 </table>
 

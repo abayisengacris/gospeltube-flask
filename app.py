@@ -11,6 +11,7 @@ import re
 from urllib.parse import urlparse, parse_qs
 from typing import Optional
 from flask_mail import Mail, Message  # Added Flask-Mail
+from datetime import datetime, timedelta
 
 # =====================================================
 # APP CONFIGURATION
@@ -76,8 +77,8 @@ def slugify(name: str) -> str:
 def admin_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not session.get("admin"):
-            flash("Admin login required.", "danger")
+        if session.get("role") != "admin":
+            flash("Admin access required.", "danger")
             return redirect(url_for("admin_login"))
         return func(*args, **kwargs)
     return wrapper
@@ -99,6 +100,31 @@ def get_related_videos(video, limit=6):
         Video.id != video.id
     ).order_by(Video.date_added.desc()).limit(limit).all()
 
+def uploader_or_admin_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if session.get("role") not in ["admin", "uploader"]:
+            flash("Login required.", "danger")
+            return redirect(url_for("admin_login"))
+        return func(*args, **kwargs)
+    return wrapper
+    
+def create_admin_user():
+    """Create an admin user if it doesn't exist."""
+    with app.app_context():
+        # Check if admin already exists
+        admin = User.query.filter_by(username=ADMIN_USERNAME).first()
+        if not admin:
+            admin = User(
+                username=ADMIN_USERNAME,
+                password=ADMIN_PASSWORD_HASH,  # make sure this is hashed
+                role="admin"
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("✅ Admin user created successfully!")
+        else:
+            print("ℹ Admin user already exists.")
 # =====================================================
 # DATABASE MODELS
 # =====================================================
@@ -120,6 +146,7 @@ class Video(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey("category.id"))
     translated_link = db.Column(db.String(500))
     download_link = db.Column(db.String(500))
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"))  # ✅ NEW
     views = db.Column(db.Integer, default=0)
     likes = db.Column(db.Integer, default=0)
     last_watched = db.Column(db.DateTime)
@@ -133,7 +160,10 @@ class Subscriber(db.Model):
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(100), nullable=False, unique=True)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), default="uploader")  # admin | uploader
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Like(db.Model):
     __tablename__ = "likes"
@@ -286,20 +316,54 @@ def category_landing_page(category_slug):
 # =====================================================
 # ADMIN ROUTES
 # =====================================================
-@app.route("/admin", methods=["GET", "POST"])
+@app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        if request.form.get("username") == ADMIN_USERNAME and \
-           check_password_hash(ADMIN_PASSWORD_HASH, request.form.get("password")):
-            session["admin"] = True
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        user = User.query.filter_by(username=username).first()
+
+        if user and check_password_hash(user.password, password):
+            session.clear()
+            session["user_id"] = user.id
+            session["role"] = user.role
+
             flash("Logged in successfully!", "success")
-            return redirect(url_for("manage_videos"))
+
+            if user.role == "admin":
+                return redirect(url_for("manage_videos"))
+            else:
+                return redirect(url_for("uploader_dashboard"))
+
         flash("Invalid credentials.", "danger")
+
     return render_template("admin_login.html")
 
-@app.route("/admin/logout")
+@app.route("/admin/create-user", methods=["POST"])
 @admin_required
-def admin_logout():
+def create_user():
+    username = request.form.get("username")
+    password = request.form.get("password")
+    role = request.form.get("role", "uploader")
+
+    if User.query.filter_by(username=username).first():
+        flash("User already exists.", "warning")
+        return redirect(url_for("manage_videos"))
+
+    user = User(
+        username=username,
+        password=generate_password_hash(password),
+        role=role
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    flash("User created successfully.", "success")
+    return redirect(url_for("manage_videos"))
+
+@app.route("/logout")
+def logout():
     session.clear()
     flash("Logged out successfully.", "success")
     return redirect(url_for("admin_login"))
@@ -313,29 +377,73 @@ def manage_videos():
         categories=Category.query.order_by(Category.name.asc()).all()
     )
 
-@app.route("/admin/videos/add", methods=["POST"])
-@admin_required
+@app.route("/admin/videos/add", methods=["GET", "POST"])
+@uploader_or_admin_required
 def add_video():
-    video_id = extract_video_id(request.form.get("youtube_link", ""))
-    if not video_id:
-        flash("Invalid YouTube link.", "danger")
-        return redirect(url_for("manage_videos"))
-    if Video.query.filter_by(video_id=video_id).first():
-        flash("Video already exists.", "warning")
+    if request.method == "POST":
+        # ---- process video submission ----
+        video_id = extract_video_id(request.form.get("youtube_link", ""))
+        if not video_id:
+            flash("Invalid YouTube link.", "danger")
+            return redirect(url_for("manage_videos"))
+
+        if Video.query.filter_by(video_id=video_id).first():
+            flash("Video already exists.", "warning")
+            return redirect(url_for("manage_videos"))
+
+        video = Video(
+            title=request.form.get("title"),
+            description=request.form.get("description"),
+            category_id=request.form.get("category_id") or None,
+            video_id=video_id,
+            translated_link=request.form.get("drive_link"),
+            download_link=request.form.get("mediafire_link"),
+            uploaded_by=session.get("user_id")
+        )
+
+        db.session.add(video)
+        db.session.commit()
+        flash("Video added successfully ✅", "success")
         return redirect(url_for("manage_videos"))
 
-    video = Video(
-        title=request.form.get("title"),
-        description=request.form.get("description"),
-        category_id=request.form.get("category_id") or None,
-        video_id=video_id,
-        translated_link=request.form.get("drive_link"),
-        download_link=request.form.get("mediafire_link")
-    )
-    db.session.add(video)
+    # ---- GET request → show upload form ----
+    categories = Category.query.order_by(Category.name.asc()).all()
+    return render_template("upload_video.html", categories=categories)
+
+@app.route("/create-uploader")
+def create_uploader():
+    from werkzeug.security import generate_password_hash
+    user = User(username="john_uploader", password=generate_password_hash("Password123"), role="uploader")
+    db.session.add(user)
     db.session.commit()
-    
-    # =========================
+    return "Uploader Created ✅"
+
+from datetime import datetime, timedelta
+
+@app.route("/uploader/dashboard")
+def uploader_dashboard():
+    if session.get("role") != "uploader":
+        return redirect(url_for("admin_login"))
+
+    videos = Video.query.filter_by(
+        uploaded_by=session.get("user_id")
+    ).order_by(Video.date_added.desc()).all()
+
+    now = datetime.utcnow()
+
+    video_data = []
+    for v in videos:
+        editable = now <= v.date_added + timedelta(hours=48)
+        video_data.append({
+            "video": v,
+            "editable": editable
+        })
+
+    return render_template(
+        "uploader_dashboard.html",
+        video_data=video_data
+    )
+    #======================#
     # Notify all subscribers
     # =========================
     subscribers = Subscriber.query.all()
@@ -353,11 +461,26 @@ def add_video():
     flash("Video added successfully ✅", "success")
     return redirect(url_for("manage_videos"))
 
+from datetime import datetime, timedelta
+
 @app.route("/admin/videos/<int:video_id>/edit", methods=["GET", "POST"], endpoint="edit_video")
-@admin_required
 def edit_video(video_id):
     video = Video.query.get_or_404(video_id)
+
+    # Admin can always edit
+    if session.get("role") == "uploader":
+        # Check if uploader owns this video
+        if video.uploaded_by != session.get("user_id"):
+            flash("You cannot edit this video.", "danger")
+            return redirect(url_for("uploader_dashboard"))
+
+        # Check if within 48 hours
+        if datetime.utcnow() > video.date_added + timedelta(hours=48):
+            flash("You can no longer edit this video (48 hours passed).", "warning")
+            return redirect(url_for("uploader_dashboard"))
+
     categories = Category.query.order_by(Category.name.asc()).all()
+
     if request.method == "POST":
         video.title = request.form.get("title", video.title)
         video.description = request.form.get("description", video.description)
@@ -366,17 +489,34 @@ def edit_video(video_id):
         video.download_link = request.form.get("mediafire_link")
         db.session.commit()
         flash("Video updated successfully ✅", "success")
-        return redirect(url_for("manage_videos"))
+
+        # Redirect depending on role
+        if session.get("role") == "admin":
+            return redirect(url_for("manage_videos"))
+        return redirect(url_for("uploader_dashboard"))
+
     return render_template("admin_edit_video.html", video=video, categories=categories)
 
 @app.route("/admin/videos/<int:video_id>/delete", methods=["POST"], endpoint="delete_video")
-@admin_required
 def delete_video(video_id):
     video = Video.query.get_or_404(video_id)
+
+    if session.get("role") == "uploader":
+        if video.uploaded_by != session.get("user_id"):
+            flash("You cannot delete this video.", "danger")
+            return redirect(url_for("uploader_dashboard"))
+
+        if datetime.utcnow() > video.date_added + timedelta(hours=48):
+            flash("You can no longer delete this video (48 hours passed).", "warning")
+            return redirect(url_for("uploader_dashboard"))
+
     db.session.delete(video)
     db.session.commit()
     flash("Video deleted successfully ✅", "success")
-    return redirect(url_for("manage_videos"))
+
+    if session.get("role") == "admin":
+        return redirect(url_for("manage_videos"))
+    return redirect(url_for("uploader_dashboard"))
 
 # =====================================================
 # ADMIN CATEGORY ROUTES
