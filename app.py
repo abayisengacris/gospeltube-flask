@@ -6,21 +6,37 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from datetime import datetime
 import re
 from urllib.parse import urlparse, parse_qs
 from typing import Optional
 from flask_mail import Mail, Message  # Added Flask-Mail
 from datetime import datetime, timedelta
-
+import os
+# =====================================================
+# ENSURE INSTANCE FOLDER EXISTS (for SQLite)
+# =====================================================
+if not os.path.exists("instance"):
+    os.makedirs("instance")
+# =====================================================
 # =====================================================
 # APP CONFIGURATION
 # =====================================================
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "CHANGE_THIS_TO_A_SECRET_KEY"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///gospeltube.db"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret")
+
+# ==============================
+# DATABASE CONFIGURATION
+# ==============================
+# Use PostgreSQL URL from environment variable (Render) or fallback to SQLite locally
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///gospeltube.db"  # fallback for local development
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# Set SQLAlchemy URI
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///gospeltube.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # ========================
 # FLASK-MAIL CONFIGURATION
 # ========================
@@ -111,7 +127,15 @@ def uploader_or_admin_required(func):
     
 def create_admin_user():
     """Create an admin user if it doesn't exist."""
+    # Ensure tables exist first
     with app.app_context():
+        db.create_all()  # Create tables if they don't exist
+
+        # Fix categories without slugs
+        for category in Category.query.filter(Category.slug == None).all():
+            category.slug = re.sub(r"\s+", "-", category.name.strip().lower())
+        db.session.commit()
+
         # Check if admin already exists
         admin = User.query.filter_by(username=ADMIN_USERNAME).first()
         if not admin:
@@ -461,8 +485,6 @@ def uploader_dashboard():
     flash("Video added successfully ✅", "success")
     return redirect(url_for("manage_videos"))
 
-from datetime import datetime, timedelta
-
 @app.route("/admin/videos/<int:video_id>/edit", methods=["GET", "POST"], endpoint="edit_video")
 def edit_video(video_id):
     video = Video.query.get_or_404(video_id)
@@ -596,12 +618,15 @@ def view_all_videos():
     return render_template("view_all.html", videos=videos_pagination.items, pagination=videos_pagination)
 
 # =====================================================
-# RUN APP
+# RUN APP (Render-ready)
 # =====================================================
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         for category in Category.query.filter(Category.slug == None).all():
-            category.slug = slugify(category.name)
-        db.session.commit()
-    app.run(debug=True)
+            category.slug = re.sub(r"\s+", "-", category.name.strip().lower())
+        # Create admin user if not exists
+        create_admin_user()
+
+    # Render requires host 0.0.0.0 and PORT from env
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
