@@ -24,19 +24,16 @@ if not os.path.exists("instance"):
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret")
 
-# ==============================
-# DATABASE CONFIGURATION
-# ==============================
-# Use PostgreSQL URL from environment variable (Render) or fallback to SQLite locally
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL",
-    "sqlite:///gospeltube.db"  # fallback for local development
-)
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Database configuration
+database_url = os.environ.get("DATABASE_URL")
 
-# Set SQLAlchemy URI
+# Fix old-style postgres:// URLs
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///gospeltube.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 # ========================
 # FLASK-MAIL CONFIGURATION
 # ========================
@@ -44,8 +41,8 @@ app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
 app.config["MAIL_USE_SSL"] = False
-app.config["MAIL_USERNAME"] = "your_email@gmail.com"  # Replace with your email
-app.config["MAIL_PASSWORD"] = "your_email_password"  # Replace with your email password or app-specific password
+app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
+app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = ("GospelTube", "your_email@gmail.com")  # Sender name and email
 
 mail = Mail(app)
@@ -64,14 +61,17 @@ ADMIN_PASSWORD_HASH = generate_password_hash("Cris1994!!!!")
 # =====================================================
 @app.context_processor
 def inject_globals():
+    # Safe, no DB access
     return dict(datetime=datetime)
 
 @app.context_processor
 def inject_categories():
-    return {
-        "categories": Category.query.order_by(Category.name).all()
-    }
-
+    # Wrap DB query in try/except to prevent startup errors on Render
+    try:
+        categories = Category.query.order_by(Category.name).all()
+    except Exception:
+        categories = []
+    return {"categories": categories}
 # =====================================================
 # HELPERS
 # =====================================================
