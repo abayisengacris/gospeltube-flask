@@ -63,15 +63,17 @@ ADMIN_PASSWORD_HASH = generate_password_hash("Cris1994!!!!")
 def inject_globals():
     # Safe, no DB access
     return dict(datetime=datetime)
-
+    
 @app.context_processor
 def inject_categories():
-    # Wrap DB query in try/except to prevent startup errors on Render
     try:
         categories = Category.query.order_by(Category.name).all()
-    except Exception:
+    except Exception as e:
+        print("Error loading categories:", e)
         categories = []
     return {"categories": categories}
+
+
 # =====================================================
 # HELPERS
 # =====================================================
