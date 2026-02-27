@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, session, flash, jsonify
+    url_for, session, flash, jsonify, current_app
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -9,9 +9,12 @@ from functools import wraps
 import re
 from urllib.parse import urlparse, parse_qs
 from typing import Optional
-from flask_mail import Mail, Message  # Added Flask-Mail
+from flask_mail import Mail, Message
 from datetime import datetime, timedelta
 import os
+
+# Import models
+from models import Category  # Ensure Category model is imported here
 # =====================================================
 # ENSURE INSTANCE FOLDER EXISTS (for SQLite)
 # =====================================================
@@ -61,19 +64,28 @@ ADMIN_PASSWORD_HASH = generate_password_hash("Cris1994!!!!")
 # =====================================================
 @app.context_processor
 def inject_globals():
-    # Safe, no DB access
+    """
+    Provides global variables to all templates.
+    Safe: No database access, so won't cause server errors.
+    """
     return dict(datetime=datetime)
-    
+
 @app.context_processor
 def inject_categories():
+    from app import db
+    from app import Category
+
+    categories = []
     try:
-        categories = Category.query.order_by(Category.name).all()
+        # Ensure app context is active
+        from flask import current_app
+        with current_app.app_context():
+            categories = Category.query.order_by(Category.name).all()
     except Exception as e:
         print("Error loading categories:", e)
         categories = []
+
     return {"categories": categories}
-
-
 # =====================================================
 # HELPERS
 # =====================================================
