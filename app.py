@@ -1,91 +1,64 @@
-from flask import (
-    Flask, render_template, request, redirect,
-    url_for, session, flash, jsonify, current_app
-)
+# ==============================
+# IMPORTS
+# ==============================
+import os
+import re
+from datetime import datetime
+from typing import Optional
+from urllib.parse import urlparse, parse_qs
+from functools import wraps
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_mail import Mail
 from werkzeug.security import generate_password_hash, check_password_hash
-from functools import wraps
-import re
-from urllib.parse import urlparse, parse_qs
-from typing import Optional
-from flask_mail import Mail, Message
-from datetime import datetime, timedelta
-import os
 
-# Import models
-from models import Category  # Ensure Category model is imported here
-# =====================================================
-# ENSURE INSTANCE FOLDER EXISTS (for SQLite)
-# =====================================================
-if not os.path.exists("instance"):
-    os.makedirs("instance")
-# =====================================================
-# =====================================================
+from models import db, User, Video, Comment, Category, Subscriber
+# ==============================
 # APP CONFIGURATION
-# =====================================================
+# ==============================
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret")
 
 # Database configuration
 database_url = os.environ.get("DATABASE_URL")
-
-# Fix old-style postgres:// URLs
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///gospeltube.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# ========================
-# FLASK-MAIL CONFIGURATION
-# ========================
+# Flask-Mail configuration
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
 app.config["MAIL_USE_SSL"] = False
 app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
 app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
-app.config["MAIL_DEFAULT_SENDER"] = ("GospelTube", "your_email@gmail.com")  # Sender name and email
+app.config["MAIL_DEFAULT_SENDER"] = ("GospelTube", os.environ.get("MAIL_USERNAME"))
 
+# ==============================
+# EXTENSIONS INITIALIZATION
+# ==============================
+db.init_app(app)          # Initialize db from models.py
+migrate = Migrate(app, db)  # Initialize Flask-Migrate
 mail = Mail(app)
 
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-
-# =====================================================
-# SETTINGS
-# =====================================================
+# ==============================
+# ADMIN SETTINGS
+# ==============================
 ADMIN_USERNAME = "fixgospel"
 ADMIN_PASSWORD_HASH = generate_password_hash("Cris1994!!!!")
 
-# =====================================================
+# ==============================
 # CONTEXT PROCESSORS
-# =====================================================
+# ==============================
 @app.context_processor
 def inject_globals():
-    """
-    Provides global variables to all templates.
-    Safe: No database access, so won't cause server errors.
-    """
+    """Provide global variables to templates."""
     return dict(datetime=datetime)
 
-@app.context_processor
-def inject_categories():
-    from app import db
-    from app import Category
-
-    categories = []
-    try:
-        # Ensure app context is active
-        from flask import current_app
-        with current_app.app_context():
-            categories = Category.query.order_by(Category.name).all()
-    except Exception as e:
-        print("Error loading categories:", e)
-        categories = []
-
-    return {"categories": categories}
 # =====================================================
 # HELPERS
 # =====================================================
@@ -138,88 +111,22 @@ def uploader_or_admin_required(func):
             return redirect(url_for("admin_login"))
         return func(*args, **kwargs)
     return wrapper
-    
 def create_admin_user():
-    """Create an admin user if it doesn't exist."""
-    # Ensure tables exist first
     with app.app_context():
-        db.create_all()  # Create tables if they don't exist
+        admin = User.query.filter_by(role="admin").first()
 
-        # Fix categories without slugs
-        for category in Category.query.filter(Category.slug == None).all():
-            category.slug = re.sub(r"\s+", "-", category.name.strip().lower())
-        db.session.commit()
-
-        # Check if admin already exists
-        admin = User.query.filter_by(username=ADMIN_USERNAME).first()
         if not admin:
             admin = User(
-                username=ADMIN_USERNAME,
-                password=ADMIN_PASSWORD_HASH,  # make sure this is hashed
+                username="admin",
+                email="admin@gospeltube.com",
+                password=generate_password_hash("admin123"),
                 role="admin"
             )
             db.session.add(admin)
             db.session.commit()
-            print("✅ Admin user created successfully!")
+            print("✅ Admin user created successfully.")
         else:
             print("ℹ Admin user already exists.")
-# =====================================================
-# DATABASE MODELS
-# =====================================================
-class Category(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False, unique=True)
-    slug = db.Column(db.String(120), nullable=False, unique=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey("category.id"))
-    parent = db.relationship("Category", remote_side=[id], backref="children")
-    videos = db.relationship("Video", backref="category", lazy=True)
-
-class Video(db.Model):
-    __tablename__ = "videos"
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(300), nullable=False)
-    description = db.Column(db.Text)
-    video_id = db.Column(db.String(50), nullable=False, unique=True)
-    channel_id = db.Column(db.String(50))
-    category_id = db.Column(db.Integer, db.ForeignKey("category.id"))
-    translated_link = db.Column(db.String(500))
-    download_link = db.Column(db.String(500))
-    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"))  # ✅ NEW
-    views = db.Column(db.Integer, default=0)
-    likes = db.Column(db.Integer, default=0)
-    last_watched = db.Column(db.DateTime)
-    date_added = db.Column(db.DateTime, default=datetime.utcnow)
-
-class Subscriber(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    date_subscribed = db.Column(db.DateTime, default=datetime.utcnow)
-
-class User(db.Model):
-    __tablename__ = "users"
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), nullable=False, unique=True)
-    password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default="uploader")  # admin | uploader
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class Like(db.Model):
-    __tablename__ = "likes"
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(
-        db.Integer,
-        db.ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    video_id = db.Column(
-        db.Integer,
-        db.ForeignKey("videos.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    __table_args__ = (
-        db.UniqueConstraint("user_id", "video_id", name="unique_like"),
-    )
-
 # =====================================================
 # FRONTEND ROUTES
 # =====================================================
@@ -382,8 +289,13 @@ def admin_login():
 @admin_required
 def create_user():
     username = request.form.get("username")
+    email = request.form.get("email")  # ✅ must exist in form
     password = request.form.get("password")
     role = request.form.get("role", "uploader")
+
+    if not email:
+        flash("Email is required.", "danger")
+        return redirect(url_for("manage_videos"))
 
     if User.query.filter_by(username=username).first():
         flash("User already exists.", "warning")
@@ -391,6 +303,7 @@ def create_user():
 
     user = User(
         username=username,
+        email=email.lower(),
         password=generate_password_hash(password),
         role=role
     )
@@ -635,12 +548,8 @@ def view_all_videos():
 # RUN APP (Render-ready)
 # =====================================================
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-        for category in Category.query.filter(Category.slug == None).all():
-            category.slug = re.sub(r"\s+", "-", category.name.strip().lower())
-        # Create admin user if not exists
-        create_admin_user()
+    create_admin_user()
+    app.run(debug=True)
 
-    # Render requires host 0.0.0.0 and PORT from env
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+    
