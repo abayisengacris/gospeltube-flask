@@ -313,7 +313,7 @@ def create_user():
     flash("User created successfully.", "success")
     return redirect(url_for("manage_videos"))
 
-@app.route("/logout")
+@app.route("/logout", endpoint="admin_logout")
 def logout():
     session.clear()
     flash("Logged out successfully.", "success")
