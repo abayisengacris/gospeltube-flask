@@ -13,6 +13,8 @@ from flask_migrate import Migrate
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Video, Comment, Category, Subscriber
+
+
 # ==============================
 # APP CONFIGURATION
 # ==============================
@@ -42,13 +44,16 @@ app.config["MAIL_DEFAULT_SENDER"] = ("GospelTube", os.environ.get("MAIL_USERNAME
 # ==============================
 # EXTENSIONS INITIALIZATION
 # ==============================
-db.init_app(app)          # Initialize db from models.py
-# ✅ CREATE TABLES AUTOMATICALLY
-with app.app_context():
-    db.create_all()
-migrate = Migrate(app, db)  # Initialize Flask-Migrate
+
+db.init_app(app)
+
+# initialize extensions
+migrate = Migrate(app, db)
 mail = Mail(app)
 
+# create tables automatically
+with app.app_context():
+    db.create_all()  # creates all tables
 
 # ==============================
 # CONTEXT PROCESSORS

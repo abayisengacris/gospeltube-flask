@@ -1,8 +1,8 @@
+# models.py
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
-db = SQLAlchemy()   # ✅ defined ONLY here
-
+db = SQLAlchemy()  # ✅ Only defined once
 
 # =====================================================
 # USER MODEL
@@ -17,10 +17,10 @@ class User(db.Model):
     role = db.Column(db.String(20), default="uploader")  # admin | uploader
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # relationships
-    videos = db.relationship("Video", backref="uploader", lazy=True)
-    comments = db.relationship("Comment", backref="author", lazy=True)
-    likes = db.relationship("Like", backref="user", lazy=True)
+    # Relationships
+    videos = db.relationship("Video", backref="uploader", lazy="dynamic", cascade="all, delete-orphan")
+    comments = db.relationship("Comment", backref="author", lazy="dynamic", cascade="all, delete-orphan")
+    likes = db.relationship("Like", backref="user", lazy="dynamic", cascade="all, delete-orphan")
 
 
 # =====================================================
@@ -33,14 +33,14 @@ class Category(db.Model):
     name = db.Column(db.String(120), nullable=False, unique=True)
     slug = db.Column(db.String(120), nullable=False, unique=True)
 
-    parent_id = db.Column(db.Integer, db.ForeignKey("categories.id"))
+    parent_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
     parent = db.relationship(
         "Category",
         remote_side=[id],
-        backref="children"
+        backref=db.backref("children", lazy="dynamic")
     )
 
-    videos = db.relationship("Video", backref="category", lazy=True)
+    videos = db.relationship("Video", backref="category", lazy="dynamic", cascade="all, delete-orphan")
 
 
 # =====================================================
@@ -51,28 +51,25 @@ class Video(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(300), nullable=False)
-    description = db.Column(db.Text)
-
-    # youtube / source info
+    description = db.Column(db.Text, nullable=True)
     video_id = db.Column(db.String(50), nullable=False, unique=True)
-    channel_id = db.Column(db.String(50))
-
-    # file info (if uploaded locally)
+    channel_id = db.Column(db.String(50), nullable=True)
     filename = db.Column(db.String(200), nullable=True)
 
-    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"))
-    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=True)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
-    translated_link = db.Column(db.String(500))
-    download_link = db.Column(db.String(500))
+    translated_link = db.Column(db.String(500), nullable=True)
+    download_link = db.Column(db.String(500), nullable=True)
 
     views = db.Column(db.Integer, default=0)
     likes_count = db.Column(db.Integer, default=0)
-    last_watched = db.Column(db.DateTime)
+    last_watched = db.Column(db.DateTime, nullable=True)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
 
-    comments = db.relationship("Comment", backref="video", lazy=True)
-    likes = db.relationship("Like", backref="video", lazy=True)
+    # Relationships
+    comments = db.relationship("Comment", backref="video", lazy="dynamic", cascade="all, delete-orphan")
+    likes = db.relationship("Like", backref="video", lazy="dynamic", cascade="all, delete-orphan")
 
 
 # =====================================================
@@ -85,8 +82,8 @@ class Comment(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    video_id = db.Column(db.Integer, db.ForeignKey("videos.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
 
 
 # =====================================================
@@ -96,17 +93,8 @@ class Like(db.Model):
     __tablename__ = "likes"
 
     id = db.Column(db.Integer, primary_key=True)
-
-    user_id = db.Column(
-        db.Integer,
-        db.ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    video_id = db.Column(
-        db.Integer,
-        db.ForeignKey("videos.id", ondelete="CASCADE"),
-        nullable=False
-    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "video_id", name="unique_like"),
