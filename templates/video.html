@@ -361,32 +361,44 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   });
 
-  // LIKE BUTTON FUNCTION
-  const likeBtn = document.getElementById("likeBtn");
-  const likeCountSpan = document.getElementById("likeCount");
-  const videoIdLike = likeBtn.dataset.videoId;
+document.addEventListener("DOMContentLoaded", () => {
 
-  if (!localStorage.getItem(`liked_${videoIdLike}`)) {
-      likeBtn.addEventListener("click", async () => {
-          try {
-              const response = await fetch(`/like_video/${videoIdLike}`, { method: "POST" });
-              if (response.ok) {
-                  const data = await response.json();
-                  likeCountSpan.textContent = data.likes;
-                  likeBtn.disabled = true;
-                  localStorage.setItem(`liked_${videoIdLike}`, true);
-              } else {
-                  alert("Failed to like the video. Try again.");
-              }
-          } catch (err) {
-              console.error(err);
-              alert("Error occurred while liking the video.");
-          }
-      });
-  } else {
-      likeBtn.disabled = true;
-  }
+    const likeBtn = document.getElementById("likeBtn");
+    const likeCountSpan = document.getElementById("likeCount");
 
+    if (!likeBtn || !likeCountSpan) return;
+
+    const videoId = likeBtn.dataset.videoId;
+
+    likeBtn.addEventListener("click", async () => {
+
+        try {
+
+            const response = await fetch(`/like_video/${videoId}`, {
+                method: "POST"
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+
+                // update likes number
+                likeCountSpan.textContent = data.likes;
+
+                likeBtn.disabled = true;
+
+            } else {
+                alert("Failed to like the video.");
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert("Server error while liking.");
+        }
+
+    });
+
+});
   // SUBSCRIBE BUTTON FUNCTIONALITY
   const subscribeBtn = document.getElementById("subscribeBtn");
   const subscribeModal = document.getElementById("subscribeModal");

@@ -7,20 +7,21 @@ from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse, parse_qs
 from functools import wraps
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_mail import Mail
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
-
 from models import db, User, Video, Comment, Category, Subscriber
 # ==============================
 # APP CONFIGURATION
 # ==============================
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret")
-
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 280
+}
 # Database configuration
 database_url = os.environ.get("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
@@ -42,14 +43,12 @@ app.config["MAIL_DEFAULT_SENDER"] = ("GospelTube", os.environ.get("MAIL_USERNAME
 # EXTENSIONS INITIALIZATION
 # ==============================
 db.init_app(app)          # Initialize db from models.py
+# ✅ CREATE TABLES AUTOMATICALLY
+with app.app_context():
+    db.create_all()
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
 mail = Mail(app)
 
-# ==============================
-# ADMIN SETTINGS
-# ==============================
-ADMIN_USERNAME = "fixgospel"
-ADMIN_PASSWORD_HASH = generate_password_hash("Cris1994!!!!")
 
 # ==============================
 # CONTEXT PROCESSORS
@@ -181,11 +180,33 @@ def video_page(video_id):
 
 @app.route('/like_video/<video_id>', methods=['POST'])
 def like_video(video_id):
-    video = Video.query.filter_by(video_id=video_id).first_or_404()
-    video.likes += 1
-    db.session.commit()
-    return jsonify({"likes": video.likes})
+    try:
+        video = Video.query.filter_by(video_id=video_id).first()
 
+        if not video:
+            return jsonify({
+                "success": False,
+                "message": "Video not found"
+            }), 404
+
+        # ensure likes is not None
+        if video.likes is None:
+            video.likes = 0
+
+        video.likes += 1
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "likes": video.likes
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 # ==============================
 # SUBSCRIBE ROUTE (AJAX JSON)
 # ==============================
@@ -352,15 +373,31 @@ def add_video():
             uploaded_by=session.get("user_id")
         )
 
+        # Save video first
         db.session.add(video)
         db.session.commit()
         flash("Video added successfully ✅", "success")
+
+        # =========================
+        # Notify all subscribers
+        # =========================
+        subscribers = Subscriber.query.all()
+        for sub in subscribers:
+            try:
+                msg = Message(
+                    subject=f"New Video Added: {video.title}",
+                    recipients=[sub.email],
+                    body=f"Hello!\n\nA new video '{video.title}' has been added to GospelTube.\nWatch here: {url_for('video_page', video_id=video.video_id, _external=True)}\n\nBlessings,\nGospelTube Team"
+                )
+                mail.send(msg)
+            except Exception as e:
+                print(f"Notification email failed for {sub.email}: {e}")
+
         return redirect(url_for("manage_videos"))
 
     # ---- GET request → show upload form ----
     categories = Category.query.order_by(Category.name.asc()).all()
     return render_template("upload_video.html", categories=categories)
-
 @app.route("/create-uploader")
 def create_uploader():
     from werkzeug.security import generate_password_hash
@@ -398,20 +435,6 @@ def uploader_dashboard():
     # Notify all subscribers
     # =========================
     subscribers = Subscriber.query.all()
-    for sub in subscribers:
-        try:
-            msg = Message(
-                subject=f"New Video Added: {video.title}",
-                recipients=[sub.email],
-                body=f"Hello!\n\nA new video '{video.title}' has been added to GospelTube.\nWatch it here: {url_for('video_page', video_id=video.video_id, _external=True)}\n\nBlessings,\nGospelTube Team"
-            )
-            mail.send(msg)
-        except Exception as e:
-            print(f"Notification email failed for {sub.email}:", e)
-
-    flash("Video added successfully ✅", "success")
-    return redirect(url_for("manage_videos"))
-
 @app.route("/admin/videos/<int:video_id>/edit", methods=["GET", "POST"], endpoint="edit_video")
 def edit_video(video_id):
     video = Video.query.get_or_404(video_id)
@@ -548,8 +571,9 @@ def view_all_videos():
 # RUN APP (Render-ready)
 # =====================================================
 if __name__ == "__main__":
-    create_admin_user()
-    app.run(debug=True)
+    with app.app_context():
+        db.create_all()
+        create_admin_user()
 
-
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
     
